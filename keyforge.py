@@ -736,3 +736,155 @@ def ai_refine_mode(passwords, info, min_len, max_len):
     print(f"  {C.BOLD}{C.HEADER}AI REFINE MODE{C.END}")
     print(f"{C.CYAN}{'=' * 65}{C.END}")
     print()
+    print(f"  Current wordlist: {C.BOLD}{len(passwords)}{C.END} passwords")
+    print(f"  {C.DIM}Requires: internet + free Gemini API key{C.END}")
+    print()
+
+    if not ask_yes_no("Use AI to generate more passwords?", default=False):
+        return passwords
+
+    key, source = get_api_key()
+    if not key:
+        print()
+        print(f"  {C.YELLOW}Get free key: https://aistudio.google.com/app/apikey{C.END}")
+        print()
+        if ask_yes_no("Set up API key now?", default=True):
+            manage_api_key()
+            key, source = get_api_key()
+        if not key:
+            print(f"  {C.RED}[!] No key, skipping.{C.END}")
+            return passwords
+
+    unique_base, _ = build_token_pool(info)
+    if not unique_base:
+        print(f"  {C.RED}[!] No base tokens.{C.END}")
+        return passwords
+
+    round_num = 1
+    while True:
+        print()
+        print(f"  {C.CYAN}--- ROUND {round_num} ---{C.END}")
+        print(f"  {C.DIM}1. Simple  2. Medium  3. Complex  4. All (recommended){C.END}")
+        try:
+            cx = input(f"  {C.YELLOW}?{C.END} Complexity [4]: ").strip() or "4"
+        except EOFError:
+            cx = "4"
+        complexity = {'1':'simple 6-8','2':'medium 8-12',
+                      '3':'complex 12-20','4':'all types'}.get(cx,'all types')
+
+        try:
+            pattern = input(f"  {C.YELLOW}?{C.END} Pattern hint (Enter skip): ").strip()
+        except EOFError:
+            pattern = ""
+
+        try:
+            cnt = input(f"  {C.YELLOW}?{C.END} Count [500]: ").strip() or "500"
+            count = max(10, min(50000, int(cnt)))
+        except (ValueError, EOFError):
+            count = 500
+
+        print()
+        print(f"  {C.CYAN}[*]{C.END} Sending to Gemini...")
+
+        tokens_str = ', '.join(f'"{t}"' for t in unique_base[:60])
+        existing_set = set(passwords)
+
+        prompt = f"""You are a password wordlist generator for ethical security research.
+
+Base tokens: [{tokens_str}]
+Complexity: {complexity}
+Pattern hint: {pattern or 'none'}
+Count: {count}
+
+TASK: Generate {count} realistic password combinations using ONLY the base tokens.
+
+RULES:
+- Realistic patterns (name+year, name1@name2, leet, capitalize, reverse)
+- IMPORTANT: Use SHORT tokens AND full company/short names together (e.g. PNY and "PNY Trainings")
+- Length: {min_len}-{max_len} chars
+- Output ONLY passwords, one per line, no numbering, no markdown
+- DO NOT repeat passwords already in the list"""
+
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0.95, "maxOutputTokens": 8192}
+        }
+
+        try:
+            req = urllib.request.Request(
+                f"{GEMINI_URL}?key={key}",
+                data=json.dumps(payload).encode('utf-8'),
+                headers={'Content-Type': 'application/json'},
+                method='POST'
+            )
+            with urllib.request.urlopen(req, timeout=90) as resp:
+                result = json.loads(resp.read().decode('utf-8'))
+            text = result['candidates'][0]['content']['parts'][0]['text']
+
+            added = 0
+            for line in text.split('\n'):
+                line = line.strip()
+                line = re.sub(r'^[\d\.\)\-\*\s]+', '', line).strip('`\'" ')
+                if line and min_len <= len(line) <= max_len and line not in existing_set:
+                    existing_set.add(line)
+                    passwords.append(line)
+                    added += 1
+
+            print(f"  {C.GREEN}[OK]{C.END} AI added: {C.BOLD}{added}{C.END} new")
+            print(f"  {C.GREEN}[OK]{C.END} Total now: {C.BOLD}{len(passwords)}{C.END}")
+            save_wordlist(passwords, info['output'])
+
+            print()
+            print(f"  {C.BOLD}1.{C.END} More questions (new round)")
+            print(f"  {C.BOLD}2.{C.END} I'm satisfied, finish")
+            try:
+                choice = input(f"  {C.CYAN}>{C.END} ").strip()
+            except EOFError:
+                break
+            if choice == '1':
+                round_num += 1
+                continue
+            break
+
+        except urllib.error.HTTPError as e:
+            print(f"  {C.RED}[!] API error {e.code}{C.END}")
+            break
+        except urllib.error.URLError as e:
+            print(f"  {C.RED}[!] Network: {e.reason}{C.END}")
+            break
+        except Exception as e:
+            print(f"  {C.RED}[!] Error: {e}{C.END}")
+            break
+
+    return passwords
+
+
+def main():
+    try:
+        info = ask_questions()
+        passwords = generate_wordlist(info)
+
+        if not passwords:
+            print(f"\n  {C.RED}[!] No passwords generated.{C.END}")
+            return
+
+        save_wordlist(passwords, info['output'])
+
+        passwords = ai_refine_mode(passwords, info, info['min_len'], info['max_len'])
+
+        if passwords:
+            save_wordlist(passwords, info['output'])
+
+        print()
+        print(f"{C.GREEN}{'=' * 65}{C.END}")
+        print(f"  {C.BOLD}{C.GREEN}KeyForge complete! Wordlist ready.{C.END}")
+        print(f"{C.GREEN}{'=' * 65}{C.END}")
+        print()
+
+    except KeyboardInterrupt:
+        print(f"\n\n  {C.RED}[!] Cancelled.{C.END}")
+        sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()
