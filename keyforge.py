@@ -27,12 +27,12 @@ LONG_NUMBERS = ['1234567', '12345678', '420', '2020', '2021',
 SHORT_SPECIALS = ['', '!', '@', '#', '$', '.', '_', '-', '?', '*', '+']
 
 GEMINI_FALLBACK_MODELS = [
-    "gemini-1.5-flash-latest",
-    "gemini-1.5-flash",
-    "gemini-1.5-pro",
+    "gemini-3.5-flash",
+    "gemini-3.5-flash-lite",
+    "gemini-3.6-flash",
 ]
 
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent"
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent"
 CONFIG_DIR = os.path.join(os.path.expanduser("~"), ".keyforge")
 CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
 
