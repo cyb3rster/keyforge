@@ -9,6 +9,7 @@ Usage:
 
 import os
 import sys
+import random
 import itertools
 
 # ─────────────────────────────────────────────
@@ -36,11 +37,43 @@ SOUTH_ASIAN_PATTERNS = [
     'gujjar', 'rajput', 'memon', 'ansari', 'qureshi',
 ]
 
+# ─────────────────────────────────────────────
+#  COLORS
+# ─────────────────────────────────────────────
+class C:
+    HEADER = '\033[95m'
+    BLUE   = '\033[94m'
+    CYAN   = '\033[96m'
+    GREEN  = '\033[92m'
+    YELLOW = '\033[93m'
+    RED    = '\033[91m'
+    BOLD   = '\033[1m'
+    DIM    = '\033[2m'
+    END    = '\033[0m'
 
-def ask(prompt, example="", default=""):
+    @staticmethod
+    def enable_windows():
+        """Windows 10+ pe ANSI colors enable karo."""
+        if os.name == 'nt':
+            os.system('')  # enables VT100 on Windows 10+
+
+C.enable_windows()
+
+
+# ─────────────────────────────────────────────
+#  HELPERS
+# ─────────────────────────────────────────────
+def ask_field(label, example="", default=""):
+    """Clean prompt with example on separate line."""
+    print()
+    print(f"  {C.CYAN}┌─{C.END} {C.BOLD}{label}{C.END}")
     if example:
-        print(f"    \u2514\u2500 Example: {example}")
-    val = input(prompt).strip()
+        print(f"  {C.CYAN}│{C.END}  {C.DIM}Example: {example}{C.END}")
+    try:
+        val = input(f"  {C.CYAN}└─>{C.END} ").strip()
+    except EOFError:
+        return default
+
     if val.lower() in ('skip', 's', 'none', 'na', 'n/a', 'unknown'):
         return default
     return val if val else default
@@ -48,10 +81,41 @@ def ask(prompt, example="", default=""):
 
 def ask_yes_no(prompt, default=False):
     marker = 'y' if default else 'n'
-    val = input(f"{prompt} (y/n) [{marker}]: ").strip().lower()
+    try:
+        val = input(f"  {C.YELLOW}?{C.END} {prompt} {C.DIM}(y/n) [{marker}]{C.END}: ").strip().lower()
+    except EOFError:
+        return default
     if not val:
         return default
     return val in ('y', 'yes', '1', 'true')
+
+
+def ask_int(prompt, default, min_val=1, max_val=10**9):
+    try:
+        val = input(f"  {C.YELLOW}?{C.END} {prompt} {C.DIM}[{default}]{C.END}: ").strip()
+    except EOFError:
+        return default
+    if not val:
+        return default
+    try:
+        n = int(val)
+        if n < min_val:
+            print(f"    {C.RED}[!] Too small, using minimum: {min_val}{C.END}")
+            return min_val
+        if n > max_val:
+            print(f"    {C.RED}[!] Too large, using maximum: {max_val}{C.END}")
+            return max_val
+        return n
+    except ValueError:
+        print(f"    {C.RED}[!] Invalid number, using default: {default}{C.END}")
+        return default
+
+
+def section(title):
+    print()
+    print(f"{C.BLUE}{'━' * 65}{C.END}")
+    print(f"{C.BOLD}{C.CYAN}  {title}{C.END}")
+    print(f"{C.BLUE}{'━' * 65}{C.END}")
 
 
 def case_variations(word):
@@ -71,45 +135,57 @@ def leet_variations(word, max_variants=15):
     return list(variants)
 
 
-def ask_questions():
-    print("\n" + "=" * 65)
-    print("   K E Y F O R G E   -   Wordlist Generator")
-    print("=" * 65)
-    print("\u26a0\ufe0f  For ethical/authorized use only (own accounts / pentest).")
-    print("\U0001f4a1 Leave any field empty to SKIP it \u2014 you'll get a confirmation.\n")
+# ─────────────────────────────────────────────
+#  BANNER
+# ─────────────────────────────────────────────
+def print_banner():
+    print()
+    print(f"{C.CYAN}╔{'═' * 63}╗{C.END}")
+    print(f"{C.CYAN}║{C.END}  {C.BOLD}{C.HEADER}K E Y F O R G E{C.END}  {C.DIM}─  Smart Wordlist Generator  v1.0.0{C.END}  {C.CYAN}║{C.END}")
+    print(f"{C.CYAN}╚{'═' * 63}╝{C.END}")
+    print()
+    print(f"  {C.YELLOW}⚠{C.END}  For ethical/authorized use only (own accounts / pentest).")
+    print(f"  {C.CYAN}💡{C.END} Leave any field empty to SKIP — you'll get a confirmation.")
 
+
+# ─────────────────────────────────────────────
+#  QUESTIONS
+# ─────────────────────────────────────────────
+def ask_questions():
+    print_banner()
     info = {}
 
-    print("\u2500\u2500 BASIC INFO \u2500\u2500")
-    info['first_name'] = ask("[?] First name              : ", "ali, ahmed, john")
-    info['last_name']  = ask("[?] Last name / Surname     : ", "khan, smith, malik")
-    info['nickname']   = ask("[?] Nickname                : ", "alu, sunny, jr")
-    info['username']   = ask("[?] Username / Handle       : ", "alikhan92, cool_dev")
+    section("BASIC INFO")
+    info['first_name'] = ask_field("First name", "ali, ahmed, john")
+    info['last_name']  = ask_field("Last name / Surname", "khan, smith, malik")
+    info['nickname']   = ask_field("Nickname", "alu, sunny, jr")
+    info['username']   = ask_field("Username / Handle", "alikhan92, cool_dev")
 
-    print("\n\u2500\u2500 DATE OF BIRTH \u2500\u2500")
-    print("    Formats: DDMMYYYY (15081998) | DDMMYY (150898) | YYYY (1998)")
-    dob = ask("[?] Date of birth           : ", "15081998 or 150898 or 1998")
+    section("DATE OF BIRTH")
+    print(f"  {C.DIM}Formats: DDMMYYYY (15081998) | DDMMYY (150898) | YYYY (1998){C.END}")
+    dob = ask_field("Date of birth", "15081998 or 150898 or 1998")
     if dob:
         clean = ''.join(c for c in dob if c.isdigit())
         if len(clean) in (4, 6, 8):
             info['dob'] = clean
         else:
-            print(f"    [!] Invalid ({len(clean)} digits) \u2014 skipped.")
+            print(f"    {C.RED}[!] Invalid ({len(clean)} digits) — skipped.{C.END}")
             info['dob'] = ""
     else:
         info['dob'] = ""
 
-    print("\n\u2500\u2500 EXTENDED INFO \u2500\u2500")
-    info['partner']  = ask("[?] Partner/Spouse name     : ", "sara, ayesha")
-    info['pet']      = ask("[?] Pet name                : ", "tommy, kitty")
-    info['child']    = ask("[?] Child name              : ", "hamza, emma")
-    info['city']     = ask("[?] City / Hometown         : ", "lahore, karachi")
-    info['company']  = ask("[?] Company / School        : ", "google, fast_university")
-    info['hobby']    = ask("[?] Hobby / Interest        : ", "cricket, gaming")
-    info['phone_last4'] = ask("[?] Phone last 4 digits     : ", "4567, 0000")
-    info['vehicle']  = ask("[?] Vehicle number          : ", "leB-1234")
-    info['extra']    = ask("[?] Extra words (comma sep) : ", "love, admin")
+    section("EXTENDED INFO")
+    info['partner'] = ask_field("Partner / Spouse name", "sara, ayesha")
+    info['pet']     = ask_field("Pet name", "tommy, kitty")
+    info['child']   = ask_field("Child name", "hamza, emma")
+    info['city']    = ask_field("City / Hometown", "lahore, karachi")
+    info['company'] = ask_field("Company / School", "google, fast_university")
+    info['hobby']   = ask_field("Hobby / Interest", "cricket, gaming")
+    info['phone_last4'] = ask_field("Phone last 4 digits", "4567, 0000")
+    info['vehicle'] = ask_field("Vehicle number", "leB-1234")
+    info['extra']   = ask_field("Extra words (comma sep)", "love, admin")
 
+    # Check empty
     all_fields = [
         ('first_name', 'First name'), ('last_name', 'Last name'),
         ('nickname', 'Nickname'), ('username', 'Username'),
@@ -123,142 +199,205 @@ def ask_questions():
     filled = [label for key, label in all_fields if info.get(key)]
 
     if not filled:
-        print("\n[!] You left EVERYTHING empty. Cannot generate a wordlist.")
+        print(f"\n  {C.RED}[!] You left EVERYTHING empty. Cannot generate a wordlist.{C.END}")
         sys.exit(1)
 
-    print("\n" + "=" * 65)
-    print("  CONFIRMATION")
-    print("=" * 65)
-    print(f"  \u2713 Filled : {', '.join(filled)}")
+    # Confirmation
+    section("CONFIRMATION")
+    print(f"  {C.GREEN}✓ Filled :{C.END} {', '.join(filled)}")
     if empty:
-        print(f"  \u2717 Skipped: {', '.join(empty)}")
-    else:
-        print("  \u2717 Skipped: (none)")
-
-    if empty:
-        print(f"\n  You left {len(empty)} field(s) EMPTY. They will be skipped.")
-        if not ask_yes_no("  Run with these skips?", default=True):
-            print("\n[!] Aborted.")
+        print(f"  {C.YELLOW}✗ Skipped:{C.END} {', '.join(empty)}")
+        print()
+        print(f"  {C.YELLOW}You left {len(empty)} field(s) EMPTY. They will be skipped.{C.END}")
+        if not ask_yes_no("Run with these skips?", default=True):
+            print(f"\n  {C.RED}[!] Aborted.{C.END}")
             sys.exit(0)
     else:
-        if not ask_yes_no("  All fields filled. Proceed?", default=True):
-            print("\n[!] Aborted.")
+        print(f"  {C.GREEN}✗ Skipped:{C.END} (none)")
+        if not ask_yes_no("All fields filled. Proceed?", default=True):
+            print(f"\n  {C.RED}[!] Aborted.{C.END}")
             sys.exit(0)
 
-    print("\n" + "-" * 65)
-    print("  GENERATION OPTIONS")
-    print("-" * 65)
-    print("    \u2022 Leetspeak : ali \u2192 4l1, @li")
-    info['use_leet'] = ask_yes_no("[?] Enable leetspeak?", True)
-    print("    \u2022 Reverse   : ali \u2192 ila")
-    info['add_reverse'] = ask_yes_no("[?] Add reversed words?", True)
-    print("    \u2022 South Asian: 786, Allah, Khan")
-    info['south_asian'] = ask_yes_no("[?] Add South Asian patterns?", True)
+    # Generation Options
+    section("GENERATION OPTIONS")
 
-    size_str = ask("[?] Max passwords           : ", "200000", "200000")
-    try:
-        info['max_size'] = int(size_str)
-    except ValueError:
-        info['max_size'] = 200000
+    print(f"  {C.DIM}• Leetspeak : ali → 4l1, @li{C.END}")
+    info['use_leet'] = ask_yes_no("Enable leetspeak?", True)
 
-    info['output'] = ask("[?] Output file             : ", "wordlist.txt", "wordlist.txt")
-    if not info['output']:
-        info['output'] = "wordlist.txt"
+    print(f"  {C.DIM}• Reverse   : ali → ila{C.END}")
+    info['add_reverse'] = ask_yes_no("Add reversed words?", True)
+
+    print(f"  {C.DIM}• South Asian: 786, Allah, Khan{C.END}")
+    info['south_asian'] = ask_yes_no("Add South Asian patterns?", True)
+
+    section("PASSWORD LENGTH")
+    info['min_len'] = ask_int("Minimum password length", 6, 1, 100)
+    info['max_len'] = ask_int("Maximum password length", 25, 1, 100)
+    if info['min_len'] > info['max_len']:
+        print(f"  {C.RED}[!] Min > Max. Swapping.{C.END}")
+        info['min_len'], info['max_len'] = info['max_len'], info['min_len']
+
+    section("OUTPUT SETTINGS")
+    info['max_size'] = ask_int("Max passwords to generate", 200000, 1, 50000000)
+    info['output'] = ask_field("Output file", "wordlist.txt") or "wordlist.txt"
 
     return info
 
 
+# ─────────────────────────────────────────────
+#  BUILD TOKENS (USER FIRST, THEN PATTERNS)
+# ─────────────────────────────────────────────
 def build_tokens(info):
-    tokens = set()
+    """
+    Priority-based token building:
+    1. User input tokens (names, DOB, city, etc.) — HIGHEST priority
+    2. Leetspeak variants of user tokens
+    3. Combined user tokens
+    4. South Asian patterns — LOWEST priority
+    """
+    user_tokens = []      # ordered — user input
+    pattern_tokens = []   # ordered — South Asian
+
+    # ── 1. User input tokens (in order)
     name_keys = ['first_name', 'last_name', 'nickname', 'username',
                  'partner', 'pet', 'child', 'city', 'company', 'hobby']
     for key in name_keys:
         val = (info.get(key) or '').strip()
         if val:
             for v in case_variations(val):
-                tokens.add(v)
+                if v and len(v) >= 2:
+                    user_tokens.append(v)
 
+    # ── 2. Full name combos
     fn = (info.get('first_name') or '').lower()
     ln = (info.get('last_name') or '').lower()
     un = (info.get('username') or '').lower()
 
     if fn and ln:
-        tokens.update([fn+ln, fn+'_'+ln, fn+'.'+ln, fn[0]+ln, ln+fn, ln[0]+fn])
+        user_tokens.extend([fn+ln, fn+'_'+ln, fn+'.'+ln,
+                            fn[0]+ln, ln+fn, ln[0]+fn])
     if fn and un:
-        tokens.update([fn+un, un+fn])
+        user_tokens.extend([fn+un, un+fn])
 
+    # ── 3. DOB variations
     dob = info.get('dob', '')
     if dob:
-        tokens.add(dob)
+        user_tokens.append(dob)
         if len(dob) == 8:
             d, m, y = dob[:2], dob[2:4], dob[4:]
-            tokens.update([d+m, d+m+y, d+m+y[2:], y+m+d, y[2:]+m+d, m+d+y, y])
+            user_tokens.extend([d+m, d+m+y, d+m+y[2:],
+                                y+m+d, y[2:]+m+d, m+d+y, y])
         elif len(dob) == 6:
             d, m, y = dob[:2], dob[2:4], dob[4:]
-            tokens.update([d+m+y, y+m+d, d+m, y])
+            user_tokens.extend([d+m+y, y+m+d, d+m, y])
         elif len(dob) == 4:
-            tokens.add(dob)
+            user_tokens.append(dob)
 
+    # ── 4. Phone last 4
     ph = info.get('phone_last4', '')
     if ph:
-        tokens.update([ph, ph[::-1]])
+        user_tokens.extend([ph, ph[::-1]])
 
+    # ── 5. Vehicle
     veh = info.get('vehicle', '')
     if veh:
         for v in case_variations(veh):
-            tokens.add(v)
+            user_tokens.append(v)
 
+    # ── 6. Extra words
     extra = info.get('extra', '')
     if extra:
         for w in extra.split(','):
             w = w.strip()
             if w:
                 for v in case_variations(w):
-                    tokens.add(v)
+                    user_tokens.append(v)
 
+    # Deduplicate user tokens (keep order)
+    seen = set()
+    user_tokens = [t for t in user_tokens
+                   if t and len(t) >= 2 and not (t in seen or seen.add(t))]
+
+    # ── 7. Leetspeak expansion (based on user tokens)
+    if info.get('use_leet'):
+        leet_tokens = []
+        for t in user_tokens:
+            if t.isalpha() and 2 <= len(t) <= 10:
+                leet_tokens.extend(leet_variations(t, max_variants=10))
+        # dedupe leet
+        leet_seen = set()
+        leet_tokens = [t for t in leet_tokens
+                       if not (t in leet_seen or leet_seen.add(t))]
+        user_tokens = user_tokens + leet_tokens
+
+    # ── 8. South Asian patterns (LOWEST priority)
     if info.get('south_asian'):
         for pattern in SOUTH_ASIAN_PATTERNS:
-            tokens.update([pattern, pattern.capitalize()])
+            pattern_tokens.append(pattern)
+            pattern_tokens.append(pattern.capitalize())
 
-    return [t for t in tokens if t and len(t) >= 2]
+    # FINAL ORDER: user first, patterns last
+    return user_tokens, pattern_tokens
 
 
+# ─────────────────────────────────────────────
+#  GENERATE
+# ─────────────────────────────────────────────
 def generate_wordlist(info):
-    tokens = build_tokens(info)
-    max_size = info['max_size']
-    if not tokens:
+    user_tokens, pattern_tokens = build_tokens(info)
+
+    if not user_tokens and not pattern_tokens:
         return []
 
-    if info.get('use_leet'):
-        leet_set = set()
-        for t in tokens:
-            if t.isalpha() and 2 <= len(t) <= 10:
-                leet_set.update(leet_variations(t, max_variants=15))
-        tokens = list(set(tokens) | leet_set)
+    print()
+    print(f"  {C.CYAN}[*]{C.END} User tokens  : {C.BOLD}{len(user_tokens)}{C.END}")
+    print(f"  {C.CYAN}[*]{C.END} Pattern tokens: {C.BOLD}{len(pattern_tokens)}{C.END}")
+    print(f"  {C.CYAN}[*]{C.END} Length range : {C.BOLD}{info['min_len']}-{info['max_len']}{C.END} chars")
+    print(f"  {C.CYAN}[*]{C.END} Generating combinations...")
+    print()
 
-    print(f"\n[*] Base tokens: {len(tokens)}")
-    print("[*] Generating combinations...")
+    max_size = info['max_size']
+    min_len = info['min_len']
+    max_len = info['max_len']
 
-    passwords = set()
+    passwords = []
+    seen = set()
 
-    for t in tokens:
+    def add(pw):
+        if not pw:
+            return False
+        if not (min_len <= len(pw) <= max_len):
+            return False
+        if pw in seen:
+            return False
+        seen.add(pw)
+        passwords.append(pw)
+        return True
+
+    # ── Phase 1: User tokens + numbers + specials (HIGH PRIORITY)
+    # Iterate numbers/specials in natural order so short & common ones come first
+    for t in user_tokens:
         for n in COMMON_NUMBERS:
             for s in COMMON_SPECIALS:
-                passwords.add(f"{t}{n}{s}")
-                if len(passwords) >= max_size:
-                    break
+                if add(f"{t}{n}{s}"):
+                    if len(passwords) >= max_size:
+                        break
             if len(passwords) >= max_size:
                 break
         if len(passwords) >= max_size:
             break
 
+    # ── Phase 2: User token pairs
     if len(passwords) < max_size:
-        for a, b in itertools.product(tokens, repeat=2):
-            if a == b:
-                continue
-            for n in ['', '1', '123', '786']:
-                for s in ['', '@', '_', '.']:
-                    passwords.add(f"{a}{s}{b}{n}")
+        for a in user_tokens:
+            for b in user_tokens:
+                if a == b:
+                    continue
+                for n in ['', '1', '123', '786']:
+                    for s in ['', '@', '_', '.']:
+                        if add(f"{a}{s}{b}{n}"):
+                            if len(passwords) >= max_size:
+                                break
                     if len(passwords) >= max_size:
                         break
                 if len(passwords) >= max_size:
@@ -266,46 +405,75 @@ def generate_wordlist(info):
             if len(passwords) >= max_size:
                 break
 
+    # ── Phase 3: Capitalize
     if len(passwords) < max_size:
-        cap_set = set()
-        for p in list(passwords)[:max_size // 2]:
+        for p in list(passwords):
             if p and p[0].islower():
-                cap_set.add(p.capitalize())
-        passwords.update(cap_set)
+                add(p.capitalize())
+            if len(passwords) >= max_size:
+                break
 
+    # ── Phase 4: Reverse
     if info.get('add_reverse') and len(passwords) < max_size:
-        rev_set = set()
-        for p in list(passwords)[:max_size // 3]:
-            rev_set.add(p[::-1])
-        passwords.update(rev_set)
+        for p in list(passwords):
+            add(p[::-1])
+            if len(passwords) >= max_size:
+                break
 
-    passwords = list(passwords)[:max_size]
-    print(f"[\u2713] Total passwords generated: {len(passwords)}")
+    # ── Phase 5: South Asian patterns (LOW PRIORITY)
+    if len(passwords) < max_size and pattern_tokens:
+        for t in pattern_tokens:
+            for n in COMMON_NUMBERS:
+                for s in COMMON_SPECIALS:
+                    if add(f"{t}{n}{s}"):
+                        if len(passwords) >= max_size:
+                            break
+                if len(passwords) >= max_size:
+                    break
+            if len(passwords) >= max_size:
+                break
+
+    passwords = passwords[:max_size]
+    print(f"  {C.GREEN}[✓]{C.END} Total passwords generated: {C.BOLD}{len(passwords)}{C.END}")
     return passwords
 
 
+# ─────────────────────────────────────────────
+#  SAVE
+# ─────────────────────────────────────────────
 def save_wordlist(passwords, output_file):
+    # Add .txt if no extension given
+    if not os.path.splitext(output_file)[1]:
+        output_file += '.txt'
+
     with open(output_file, 'w', encoding='utf-8') as f:
         for p in passwords:
             f.write(p + '\n')
+
     size_mb = os.path.getsize(output_file) / (1024 * 1024)
-    print(f"[\u2713] Saved: {os.path.abspath(output_file)}")
-    print(f"[\u2713] Size: {size_mb:.2f} MB")
+    print(f"  {C.GREEN}[✓]{C.END} Saved: {C.BOLD}{os.path.abspath(output_file)}{C.END}")
+    print(f"  {C.GREEN}[✓]{C.END} Size : {size_mb:.2f} MB")
+    return output_file
 
 
+# ─────────────────────────────────────────────
+#  MAIN
+# ─────────────────────────────────────────────
 def main():
     try:
         info = ask_questions()
         passwords = generate_wordlist(info)
         if passwords:
             save_wordlist(passwords, info['output'])
-            print("\n" + "=" * 65)
-            print("  \u2705 KeyForge complete! Wordlist ready.")
-            print("=" * 65)
+            print()
+            print(f"{C.GREEN}{'═' * 65}{C.END}")
+            print(f"  {C.BOLD}{C.GREEN}✅ KeyForge complete! Wordlist ready.{C.END}")
+            print(f"{C.GREEN}{'═' * 65}{C.END}")
+            print()
         else:
-            print("\n[!] No passwords generated.")
+            print(f"\n  {C.RED}[!] No passwords generated.{C.END}")
     except KeyboardInterrupt:
-        print("\n\n[!] Cancelled.")
+        print(f"\n\n  {C.RED}[!] Cancelled.{C.END}")
         sys.exit(0)
 
 
