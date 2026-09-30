@@ -710,3 +710,61 @@ def generate_wordlist(info):
                 break
 
     # Phase 10: token + special
+    # Phase 10: token + special + number (different order)
+    if len(passwords) < max_size:
+        for s in ['@', '!', '#', '$']:
+            for n in ['1', '12', '123', '1234']:
+                for t in all_tokens[:len(unique_base) * 2]:
+                    add(f"{t}{s}{n}")
+                    if len(passwords) >= max_size:
+                        break
+                if len(passwords) >= max_size:
+                    break
+            if len(passwords) >= max_size:
+                break
+
+    passwords = passwords[:max_size]
+    print(f"  {C.GREEN}[✓]{C.END} Total passwords generated: {C.BOLD}{len(passwords)}{C.END}")
+    return passwords
+
+
+# ─────────────────────────────────────────────
+#  SAVE
+# ─────────────────────────────────────────────
+def save_wordlist(passwords, output_file):
+    if not os.path.splitext(output_file)[1]:
+        output_file += '.txt'
+
+    with open(output_file, 'w', encoding='utf-8') as f:
+        for p in passwords:
+            f.write(p + '\n')
+
+    size_mb = os.path.getsize(output_file) / (1024 * 1024)
+    print(f"  {C.GREEN}[✓]{C.END} Saved: {C.BOLD}{os.path.abspath(output_file)}{C.END}")
+    print(f"  {C.GREEN}[✓]{C.END} Size : {size_mb:.2f} MB")
+    return output_file
+
+
+# ─────────────────────────────────────────────
+#  MAIN
+# ─────────────────────────────────────────────
+def main():
+    try:
+        info = ask_questions()
+        passwords = generate_wordlist(info)
+        if passwords:
+            save_wordlist(passwords, info['output'])
+            print()
+            print(f"{C.GREEN}{'═' * 65}{C.END}")
+            print(f"  {C.BOLD}{C.GREEN}✅ KeyForge complete! Wordlist ready.{C.END}")
+            print(f"{C.GREEN}{'═' * 65}{C.END}")
+            print()
+        else:
+            print(f"\n  {C.RED}[!] No passwords generated.{C.END}")
+    except KeyboardInterrupt:
+        print(f"\n\n  {C.RED}[!] Cancelled.{C.END}")
+        sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()
