@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-KeyForge - Smart Personal Wordlist Generator
-Advanced CUPP alternative with category-based profiles.
+KeyForge - Smart Personal Wordlist Generator with AI Refinement
+Advanced CUPP alternative with category profiles + Gemini AI.
 For ethical/authorized use only.
 
 Usage:
@@ -11,7 +11,10 @@ Usage:
 import os
 import sys
 import re
+import json
 import itertools
+import urllib.request
+import urllib.error
 
 # ─────────────────────────────────────────────
 #  CONFIGURATION
@@ -30,6 +33,14 @@ LONG_NUMBERS = ['1234567', '12345678', '420', '2020', '2021',
                 '2022', '2023', '2024', '2025', '2026']
 
 SHORT_SPECIALS = ['', '!', '@', '#', '$', '.', '_', '-', '?', '*', '+']
+
+# API config
+GEMINI_MODEL = "gemini-1.5-flash-latest"
+GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
+
+# Local config path
+CONFIG_DIR = os.path.join(os.path.expanduser("~"), ".keyforge")
+CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
 
 
 # ─────────────────────────────────────────────
@@ -58,17 +69,8 @@ C.enable_windows()
 #  HELPERS
 # ─────────────────────────────────────────────
 def split_values(raw):
-    """
-    Split comma-separated values. Handles all of these:
-      - "abc,def,ghi"
-      - "abc, def, ghi"
-      - "abc , def , ghi"
-      - "abc,  def  ,ghi"
-      - "abc; def; ghi"  (semicolon bhi)
-    """
     if not raw:
         return []
-    # Comma ya semicolon se split karo
     parts = re.split(r'[,;]', raw)
     seen = set()
     result = []
@@ -125,10 +127,6 @@ def ask_int(prompt, default, min_val=1, max_val=10**9):
 
 
 def ask_choice(prompt, choices):
-    """
-    choices: list of (key, label, description)
-    Returns: selected key
-    """
     print()
     print(f"  {C.YELLOW}{prompt}{C.END}")
     print()
@@ -149,11 +147,21 @@ def ask_choice(prompt, choices):
             if 1 <= n <= len(choices):
                 return choices[n-1][0]
         except ValueError:
-            # Check by key name bhi
             for key, label, desc in choices:
                 if val.lower() == key.lower():
                     return key
         print(f"    {C.RED}[!] Invalid. Try 1-{len(choices)}.{C.END}")
+
+
+def ask_free_text(prompt, default=""):
+    """Free-form input from user, no skip semantics."""
+    print()
+    print(f"  {C.YELLOW}?{C.END} {prompt}")
+    try:
+        val = input(f"  {C.CYAN}└─>{C.END} ").strip()
+    except EOFError:
+        return default
+    return val if val else default
 
 
 def section(title):
@@ -190,12 +198,130 @@ def leet_variations(word, max_variants=20):
 def print_banner():
     print()
     print(f"{C.CYAN}╔{'═' * 63}╗{C.END}")
-    print(f"{C.CYAN}║{C.END}  {C.BOLD}{C.HEADER}K E Y F O R G E{C.END}  {C.DIM}─  Smart Wordlist Generator  v2.0.0{C.END}  {C.CYAN}║{C.END}")
+    print(f"{C.CYAN}║{C.END}  {C.BOLD}{C.HEADER}K E Y F O R G E{C.END}  {C.DIM}─  Wordlist Generator  v3.0.0{C.END}  {C.CYAN}║{C.END}")
     print(f"{C.CYAN}╚{'═' * 63}╝{C.END}")
     print()
     print(f"  {C.YELLOW}⚠{C.END}  For ethical/authorized use only (own accounts / pentest).")
     print(f"  {C.CYAN}💡{C.END} Leave any field empty to SKIP.")
     print(f"  {C.CYAN}💡{C.END} Use commas for multiple values: {C.BOLD}lahore, karachi, london{C.END}")
+
+
+# ─────────────────────────────────────────────
+#  LOCAL CONFIG (API KEY STORAGE)
+# ─────────────────────────────────────────────
+def load_config():
+    """Load local config (API key)."""
+    if not os.path.exists(CONFIG_FILE):
+        return {}
+    try:
+        with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def save_config(config):
+    """Save config to local machine only."""
+    try:
+        os.makedirs(CONFIG_DIR, exist_ok=True)
+        with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+            json.dump(config, f, indent=2)
+        # Restrict permissions (Unix only)
+        if os.name != 'nt':
+            try:
+                os.chmod(CONFIG_FILE, 0o600)
+            except Exception:
+                pass
+        return True
+    except Exception as e:
+        print(f"  {C.RED}[!] Could not save config: {e}{C.END}")
+        return False
+
+
+def get_api_key():
+    """Get API key from local config or env var."""
+    # Priority 1: Environment variable
+    env_key = os.environ.get('GEMINI_API_KEY', '').strip()
+    if env_key:
+        return env_key, 'env'
+
+    # Priority 2: Local config
+    config = load_config()
+    key = config.get('gemini_api_key', '').strip()
+    if key:
+        return key, 'file'
+
+    return '', 'none'
+
+
+def manage_api_key():
+    """API key management menu."""
+    while True:
+        key, source = get_api_key()
+
+        section("🔑 API KEY MANAGEMENT")
+
+        if key:
+            masked = key[:8] + '...' + key[-4:] if len(key) > 12 else '***'
+            source_label = {
+                'env': 'Environment Variable (GEMINI_API_KEY)',
+                'file': f'Local Config ({CONFIG_FILE})',
+            }.get(source, 'Unknown')
+            print(f"  {C.GREEN}✓{C.END} Current key : {C.BOLD}{masked}{C.END}")
+            print(f"  {C.DIM}Source       : {source_label}{C.END}")
+        else:
+            print(f"  {C.YELLOW}⚠{C.END} No API key configured")
+            print(f"  {C.DIM}Get free key: https://aistudio.google.com/app/apikey{C.END}")
+
+        print()
+        print(f"  {C.BOLD}Options:{C.END}")
+        print(f"    1. Add / Replace API key")
+        if key and source == 'file':
+            print(f"    2. Delete API key from local config")
+            print(f"    3. Back")
+            max_choice = 3
+        else:
+            print(f"    2. Back")
+            max_choice = 2
+
+        print()
+        try:
+            choice = input(f"  {C.CYAN}└─>{C.END} ").strip()
+        except EOFError:
+            return
+
+        if choice == '1':
+            print()
+            print(f"  {C.DIM}Get free key: https://aistudio.google.com/app/apikey{C.END}")
+            print(f"  {C.DIM}Key starts with 'AIzaSy...'{C.END}")
+            print()
+            try:
+                new_key = input(f"  {C.YELLOW}?{C.END} Paste your API key: ").strip()
+            except EOFError:
+                continue
+            if not new_key:
+                print(f"  {C.RED}[!] Empty. Cancelled.{C.END}")
+                continue
+
+            config = load_config()
+            config['gemini_api_key'] = new_key
+            if save_config(config):
+                print(f"  {C.GREEN}[✓]{C.END} Key saved to: {CONFIG_FILE}")
+                print(f"  {C.DIM}(Stored locally on your machine only){C.END}")
+            input(f"\n  Press Enter to continue...")
+
+        elif choice == '2' and key and source == 'file':
+            if ask_yes_no("Delete saved API key?", default=False):
+                config = load_config()
+                config.pop('gemini_api_key', None)
+                save_config(config)
+                print(f"  {C.GREEN}[✓]{C.END} Key deleted.")
+            input(f"\n  Press Enter to continue...")
+
+        elif choice == str(max_choice):
+            return
+        else:
+            print(f"  {C.RED}[!] Invalid choice.{C.END}")
 
 
 # ─────────────────────────────────────────────
@@ -214,7 +340,7 @@ CATEGORIES = [
 
 
 # ─────────────────────────────────────────────
-#  QUESTION TEMPLATES PER CATEGORY
+#  QUESTION TEMPLATES
 # ─────────────────────────────────────────────
 def ask_person_questions(info):
     section("PERSON DETAILS")
@@ -272,7 +398,7 @@ def ask_company_questions(info):
     info['industry']  = ask_field("Industry", "Example: tech, finance, healthcare")
     info['department'] = ask_field("Department", "Example: engineering, marketing, hr")
     info['extra']     = ask_field("Extra words (comma for multiple)", "Example: employee, admin, staff")
-    info['founded_dob'] = ""
+    info['dob']       = ""
 
 
 def ask_place_questions(info):
@@ -291,6 +417,7 @@ def ask_place_questions(info):
     info['famous_for'] = ask_field("Famous for", "Example: food, history, culture")
     info['extra']     = ask_field("Extra words (comma for multiple)", "Example: tourism, travel, visit")
     info['company']   = ""
+    info['dob']       = ""
 
 
 def ask_gaming_questions(info):
@@ -395,14 +522,12 @@ def ask_custom_questions(info):
 def ask_questions():
     print_banner()
 
-    # ── Category Selection
     section("CHOOSE TARGET CATEGORY")
     category = ask_choice("What do you want to generate a wordlist for?",
                          CATEGORIES)
 
     info = {'category': category}
 
-    # ── Category-specific questions
     if category == 'person':
         ask_person_questions(info)
     elif category == 'company':
@@ -420,7 +545,6 @@ def ask_questions():
     else:
         ask_custom_questions(info)
 
-    # ── Confirmation
     all_fields = [(k, k.replace('_', ' ').title())
                   for k in info.keys() if k != 'category']
     empty = [label for key, label in all_fields if not info.get(key)]
@@ -444,7 +568,6 @@ def ask_questions():
     else:
         print(f"  {C.GREEN}✗ Skipped:{C.END} (none)")
 
-    # ── Options
     section("GENERATION OPTIONS")
     print(f"  {C.DIM}• Leetspeak : ali → 4l1, @li{C.END}")
     info['use_leet'] = ask_yes_no("Enable leetspeak?", True)
@@ -475,7 +598,6 @@ def build_token_pool(info):
     base_tokens = []
     all_tokens = []
 
-    # ── Multi-value fields (comma split)
     multi_fields = ['nickname', 'username', 'partner', 'pet', 'child',
                     'parent', 'sibling', 'city', 'company', 'hobby', 'extra',
                     'ceo', 'founder', 'manager', 'slogan', 'product',
@@ -493,21 +615,18 @@ def build_token_pool(info):
                 if v and len(v) >= 2:
                     base_tokens.append(v)
 
-    # ── Single fields
     single_fields = ['first_name', 'last_name', 'vehicle', 'postal']
     for key in single_fields:
         val = (info.get(key) or '').strip()
         if val:
             base_tokens.append(val)
 
-    # ── Phone
     ph_raw = (info.get('phone_last4') or '').strip()
     if ph_raw:
         for p in split_values(ph_raw):
             if p:
                 base_tokens.append(p)
 
-    # ── DOB
     dob = info.get('dob', '')
     if dob:
         base_tokens.append(dob)
@@ -522,7 +641,6 @@ def build_token_pool(info):
         elif len(dob) == 4:
             base_tokens.append(dob)
 
-    # ── Deduplicate base
     seen_lower = set()
     unique_base = []
     for t in base_tokens:
@@ -530,13 +648,11 @@ def build_token_pool(info):
             seen_lower.add(t.lower())
             unique_base.append(t)
 
-    # ── Case variations
     for t in unique_base:
         for v in case_variations(t):
             if v and len(v) >= 2:
                 all_tokens.append(v)
 
-    # ── Leetspeak
     if info.get('use_leet'):
         leet_list = []
         for t in unique_base:
@@ -546,12 +662,10 @@ def build_token_pool(info):
             if t and len(t) >= 2:
                 all_tokens.append(t)
 
-    # ── Dedupe
     seen = set()
     all_tokens = [t for t in all_tokens
                   if t and not (t in seen or seen.add(t))]
 
-    # ── South Asian
     if info.get('south_asian'):
         sa_patterns = ['786', '143', '420', '007', '000',
                        'allah', 'ali', 'hussain', 'raza', 'haider',
@@ -567,7 +681,7 @@ def build_token_pool(info):
 
 
 # ─────────────────────────────────────────────
-#  GENERATE
+#  GENERATE (FIXED PRIORITY ORDER)
 # ─────────────────────────────────────────────
 def generate_wordlist(info):
     unique_base, all_tokens = build_token_pool(info)
@@ -579,192 +693,4 @@ def generate_wordlist(info):
     print(f"  {C.CYAN}[*]{C.END} Category        : {C.BOLD}{info['category'].upper()}{C.END}")
     print(f"  {C.CYAN}[*]{C.END} Base tokens     : {C.BOLD}{len(unique_base)}{C.END}")
     print(f"  {C.CYAN}[*]{C.END} Total variations: {C.BOLD}{len(all_tokens)}{C.END}")
-    print(f"  {C.CYAN}[*]{C.END} Length range    : {C.BOLD}{info['min_len']}-{info['max_len']}{C.END} chars")
-    print(f"  {C.CYAN}[*]{C.END} Max passwords   : {C.BOLD}{info['max_size']}{C.END}")
-    print(f"  {C.CYAN}[*]{C.END} Generating...")
-    print()
-
-    max_size = info['max_size']
-    min_len = info['min_len']
-    max_len = info['max_len']
-
-    passwords = []
-    seen = set()
-
-    def add(pw):
-        if not pw:
-            return False
-        if not (min_len <= len(pw) <= max_len):
-            return False
-        if pw in seen:
-            return False
-        seen.add(pw)
-        passwords.append(pw)
-        return True
-
-    # ═══════════════════════════════════════════════
-    #  ROUND-ROBIN PHASES
-    # ═══════════════════════════════════════════════
-
-    # Phase 1: Simple tokens
-    for t in all_tokens:
-        add(t)
-        if len(passwords) >= max_size:
-            break
-
-    # Phase 2: token + short number
-    if len(passwords) < max_size:
-        for n in SHORT_NUMBERS:
-            for t in all_tokens:
-                add(f"{t}{n}")
-                if len(passwords) >= max_size:
-                    break
-            if len(passwords) >= max_size:
-                break
-
-    # Phase 3: token + special
-    if len(passwords) < max_size:
-        for s in SHORT_SPECIALS:
-            if s == '':
-                continue
-            for t in all_tokens:
-                add(f"{t}{s}")
-                if len(passwords) >= max_size:
-                    break
-            if len(passwords) >= max_size:
-                break
-
-    # Phase 4: token + number + special
-    if len(passwords) < max_size:
-        for n in SHORT_NUMBERS:
-            for s in SHORT_SPECIALS:
-                if s == '':
-                    continue
-                for t in all_tokens:
-                    add(f"{t}{n}{s}")
-                    if len(passwords) >= max_size:
-                        break
-                if len(passwords) >= max_size:
-                    break
-            if len(passwords) >= max_size:
-                break
-
-    # Phase 5: Capitalize
-    if len(passwords) < max_size:
-        for p in list(passwords):
-            if p and p[0].islower():
-                add(p.capitalize())
-            if len(passwords) >= max_size:
-                break
-
-    # Phase 6: Reverse
-    if info.get('add_reverse') and len(passwords) < max_size:
-        for p in list(passwords):
-            add(p[::-1])
-            if len(passwords) >= max_size:
-                break
-
-    # Phase 7: Two-token combos
-    if len(passwords) < max_size:
-        for a in all_tokens[:len(unique_base) * 3]:
-            for b in all_tokens[:len(unique_base) * 3]:
-                if a == b:
-                    continue
-                add(f"{a}{b}")
-                if len(passwords) >= max_size:
-                    break
-            if len(passwords) >= max_size:
-                break
-
-    # Phase 8: Two-token + num + special
-    if len(passwords) < max_size:
-        for a in all_tokens[:len(unique_base) * 2]:
-            for b in all_tokens[:len(unique_base) * 2]:
-                if a == b:
-                    continue
-                for n in ['', '1', '123', '786', '007']:
-                    for s in ['', '@', '_', '.', '!']:
-                        if s == '' and n == '':
-                            continue
-                        add(f"{a}{s}{b}{n}")
-                        if len(passwords) >= max_size:
-                            break
-                    if len(passwords) >= max_size:
-                        break
-                if len(passwords) >= max_size:
-                    break
-            if len(passwords) >= max_size:
-                break
-
-    # Phase 9: Long numbers
-    if len(passwords) < max_size:
-        for n in LONG_NUMBERS:
-            for t in all_tokens[:len(unique_base) * 2]:
-                for s in ['', '!', '@']:
-                    add(f"{t}{n}{s}")
-                    if len(passwords) >= max_size:
-                        break
-                if len(passwords) >= max_size:
-                    break
-            if len(passwords) >= max_size:
-                break
-
-    # Phase 10: token + special
-    # Phase 10: token + special + number (different order)
-    if len(passwords) < max_size:
-        for s in ['@', '!', '#', '$']:
-            for n in ['1', '12', '123', '1234']:
-                for t in all_tokens[:len(unique_base) * 2]:
-                    add(f"{t}{s}{n}")
-                    if len(passwords) >= max_size:
-                        break
-                if len(passwords) >= max_size:
-                    break
-            if len(passwords) >= max_size:
-                break
-
-    passwords = passwords[:max_size]
-    print(f"  {C.GREEN}[✓]{C.END} Total passwords generated: {C.BOLD}{len(passwords)}{C.END}")
-    return passwords
-
-
-# ─────────────────────────────────────────────
-#  SAVE
-# ─────────────────────────────────────────────
-def save_wordlist(passwords, output_file):
-    if not os.path.splitext(output_file)[1]:
-        output_file += '.txt'
-
-    with open(output_file, 'w', encoding='utf-8') as f:
-        for p in passwords:
-            f.write(p + '\n')
-
-    size_mb = os.path.getsize(output_file) / (1024 * 1024)
-    print(f"  {C.GREEN}[✓]{C.END} Saved: {C.BOLD}{os.path.abspath(output_file)}{C.END}")
-    print(f"  {C.GREEN}[✓]{C.END} Size : {size_mb:.2f} MB")
-    return output_file
-
-
-# ─────────────────────────────────────────────
-#  MAIN
-# ─────────────────────────────────────────────
-def main():
-    try:
-        info = ask_questions()
-        passwords = generate_wordlist(info)
-        if passwords:
-            save_wordlist(passwords, info['output'])
-            print()
-            print(f"{C.GREEN}{'═' * 65}{C.END}")
-            print(f"  {C.BOLD}{C.GREEN}✅ KeyForge complete! Wordlist ready.{C.END}")
-            print(f"{C.GREEN}{'═' * 65}{C.END}")
-            print()
-        else:
-            print(f"\n  {C.RED}[!] No passwords generated.{C.END}")
-    except KeyboardInterrupt:
-        print(f"\n\n  {C.RED}[!] Cancelled.{C.END}")
-        sys.exit(0)
-
-
-if __name__ == "__main__":
-    main()
+    print(f"
