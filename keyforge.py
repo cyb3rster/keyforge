@@ -343,6 +343,7 @@ def manage_api_key():
             if not new_key:
                 print(f"  {C.RED}[!] Empty key not allowed.{C.END}")
                 continue
+            # Accept ANY non-empty API key format. Google Gemini supports both old and new keys.
             if save_api_key(new_key, provider):
                 print(f"  {C.GREEN}[OK]{C.END} Key saved: {CONFIG_FILE}")
                 print(f"  {C.GREEN}[OK]{C.END} Provider saved: {provider.upper()}")
