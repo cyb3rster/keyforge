@@ -736,10 +736,6 @@ def ai_refine_mode(passwords, info, min_len, max_len):
     print(f"  {C.BOLD}{C.HEADER}AI REFINE MODE{C.END}")
     print(f"{C.CYAN}{'=' * 65}{C.END}")
     print()
-    print(f"  Current wordlist: {C.BOLD}{len(passwords)}{C.END} passwords")
-    print(f"  {C.DIM}Requires: internet + free Gemini API key{C.END}")
-    print()
-
     if not ask_yes_no("Use AI to generate more passwords?", default=False):
         return passwords
 
@@ -800,7 +796,7 @@ TASK: Generate {count} realistic password combinations using ONLY the base token
 
 RULES:
 - Realistic patterns (name+year, name1@name2, leet, capitalize, reverse)
-- IMPORTANT: Use SHORT tokens AND full company/short names together (e.g. PNY and "PNY Trainings")
+- IMPORTANT: Use SHORT tokens AND full company/short names together
 - Length: {min_len}-{max_len} chars
 - Output ONLY passwords, one per line, no numbering, no markdown
 - DO NOT repeat passwords already in the list"""
