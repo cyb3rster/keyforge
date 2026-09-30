@@ -728,4 +728,21 @@ def save_wordlist(passwords, output_file):
             f.write(p + '\n')
     size_mb = os.path.getsize(output_file) / (1024 * 1024)
     print(f"  {C.GREEN}[OK]{C.END} Saved: {C.BOLD}{os.path.abspath(output_file)}{C.END}")
-   
+
+
+def main():
+    info = ask_questions()
+    section("GENERATING WORDLIST")
+    passwords = generate_wordlist(info)
+    if passwords:
+        section("SAVING WORDLIST")
+        save_wordlist(passwords, info['output'])
+        section("DONE")
+        print(f"  {C.GREEN}[OK]{C.END} Wordlist generation complete!")
+    else:
+        print(f"  {C.RED}[!] No passwords generated.{C.END}")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
