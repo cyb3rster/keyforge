@@ -6,6 +6,8 @@ import sys
 import re
 import json
 import itertools
+import time
+import random
 import urllib.request
 import urllib.error
 
@@ -23,6 +25,12 @@ LONG_NUMBERS = ['1234567', '12345678', '420', '2020', '2021',
                 '2022', '2023', '2024', '2025', '2026']
 
 SHORT_SPECIALS = ['', '!', '@', '#', '$', '.', '_', '-', '?', '*', '+']
+
+GEMINI_FALLBACK_MODELS = [
+    "gemini-1.5-flash-latest",
+    "gemini-1.5-flash",
+    "gemini-1.5-pro",
+]
 
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent"
 CONFIG_DIR = os.path.join(os.path.expanduser("~"), ".keyforge")
@@ -365,27 +373,96 @@ def manage_api_key():
 
 
 def call_ai_api(key, provider, payload, timeout=90):
+    """
+    Call AI API with retry logic (for 503/429) and model fallback (for Gemini).
+    
+    - Retries on 503 (Service Unavailable) and 429 (Rate Limit) with exponential backoff + jitter
+    - Falls back to next Gemini model on persistent 503 errors
+    - Raises immediately for permanent errors (400, 401, 403, 404, etc.)
+    
+    Returns: JSON response dict on success
+    Raises: Exception on all retries exhausted or permanent error
+    """
     provider = (provider or 'gemini').lower()
 
+    # Determine base URL and model list for fallback
     if provider == 'gemini':
-        url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent"
-    elif provider == 'openai':
-        print(f"  {C.YELLOW}[!]{C.END} OpenAI not yet implemented. Using Gemini fallback.")
-        url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent"
-    elif provider == 'claude':
-        print(f"  {C.YELLOW}[!]{C.END} Claude not yet implemented. Using Gemini fallback.")
-        url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent"
+        models_to_try = GEMINI_FALLBACK_MODELS
+        base_url = "https://generativelanguage.googleapis.com/v1beta/models"
     else:
-        url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent"
+        # Non-Gemini providers: use fallback to Gemini
+        if provider in ('openai', 'claude'):
+            print(f"  {C.YELLOW}[!]{C.END} {provider.capitalize()} not yet implemented. Using Gemini fallback.")
+        models_to_try = [GEMINI_FALLBACK_MODELS[0]]
+        base_url = "https://generativelanguage.googleapis.com/v1beta/models"
 
-    req = urllib.request.Request(
-        f"{url}?key={key}",
-        data=json.dumps(payload).encode('utf-8'),
-        headers={'Content-Type': 'application/json'},
-        method='POST'
-    )
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return json.loads(resp.read().decode('utf-8'))
+    # Try each model in sequence
+    for model_idx, model_name in enumerate(models_to_try):
+        url = f"{base_url}/{model_name}:generateContent"
+        
+        if model_idx > 0:
+            print(f"  {C.GREEN}[OK]{C.END} Using model: {C.BOLD}{model_name}{C.END}")
+
+        # Retry logic for this model
+        retry_delays = [2, 4, 8]  # exponential backoff: 2s, 4s, 8s
+        max_retries = len(retry_delays)
+        
+        for attempt in range(max_retries + 1):
+            try:
+                req = urllib.request.Request(
+                    f"{url}?key={key}",
+                    data=json.dumps(payload).encode('utf-8'),
+                    headers={'Content-Type': 'application/json'},
+                    method='POST'
+                )
+                with urllib.request.urlopen(req, timeout=timeout) as resp:
+                    return json.loads(resp.read().decode('utf-8'))
+
+            except urllib.error.HTTPError as e:
+                # Permanent errors: raise immediately (don't retry or fallback)
+                if e.code in (400, 401, 403):
+                    try:
+                        body = json.loads(e.read().decode('utf-8', 'ignore'))
+                        msg = body.get('error', {}).get('message') or body.get('message') or e.reason
+                    except Exception:
+                        msg = e.reason
+                    raise Exception(f"Permanent error {e.code}: {msg}")
+                
+                # 404: model not found (try next model)
+                if e.code == 404:
+                    print(f"  {C.YELLOW}[!]{C.END} Model {model_name} not found (404). Trying next model...")
+                    break  # Break inner loop to try next model
+                
+                # 503 (Service Unavailable) or 429 (Rate Limit): retry with backoff
+                if e.code in (503, 429):
+                    is_overloaded = e.code == 503
+                    status_name = "overloaded" if is_overloaded else "rate limited"
+                    
+                    if attempt < max_retries:
+                        wait_time = retry_delays[attempt]
+                        jitter = random.uniform(0, 1)
+                        total_wait = wait_time + jitter
+                        print(f"  {C.YELLOW}[!]{C.END} Model {model_name} is {status_name} ({e.code}). Retrying in {total_wait:.1f}s...")
+                        time.sleep(total_wait)
+                    else:
+                        # All retries exhausted for this model
+                        print(f"  {C.YELLOW}[!]{C.END} Model {model_name} failed after {max_retries} retries. Trying next model...")
+                        break  # Break inner loop to try next model
+                    continue  # Continue to next retry attempt
+                
+                # Other HTTP errors: raise
+                try:
+                    body = json.loads(e.read().decode('utf-8', 'ignore'))
+                    msg = body.get('error', {}).get('message') or body.get('message') or e.reason
+                except Exception:
+                    msg = e.reason
+                raise Exception(f"API error {e.code}: {msg}")
+
+            except urllib.error.URLError as e:
+                raise Exception(f"Network error: {e.reason}")
+
+    # All models exhausted
+    raise Exception("All models are currently overloaded. Please try again later.")
 
 
 CATEGORIES = [
@@ -957,17 +1034,6 @@ RULES:
                 continue
             break
 
-        except urllib.error.HTTPError as e:
-            try:
-                body = json.loads(e.read().decode('utf-8', 'ignore'))
-                msg = body.get('error', {}).get('message') or body.get('message') or e.reason
-            except Exception:
-                msg = e.reason
-            print(f"  {C.RED}[!] API error {e.code}: {msg}{C.END}")
-            break
-        except urllib.error.URLError as e:
-            print(f"  {C.RED}[!] Network: {e.reason}{C.END}")
-            break
         except Exception as e:
             print(f"  {C.RED}[!] Error: {e}{C.END}")
             break
