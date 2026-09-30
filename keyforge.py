@@ -216,7 +216,6 @@ def manage_api_key():
     while True:
         key, source = get_api_key()
         section("API KEY MANAGEMENT")
-
         if key:
             masked = key[:8] + '...' + key[-4:] if len(key) > 12 else '***'
             source_label = 'Environment Variable' if source == 'env' else f'Local ({CONFIG_FILE})'
@@ -225,7 +224,6 @@ def manage_api_key():
         else:
             print(f"  {C.YELLOW}[!]{C.END} No API key configured")
             print(f"  {C.DIM}Get free: https://aistudio.google.com/app/apikey{C.END}")
-
         print()
         print(f"  {C.BOLD}Options:{C.END}")
         print(f"    1. Add / Replace API key")
@@ -236,13 +234,11 @@ def manage_api_key():
         else:
             print(f"    2. Back")
             max_c = 2
-
         print()
         try:
             choice = input(f"  {C.CYAN}>{C.END} ").strip()
         except EOFError:
             return
-
         if choice == '1':
             print()
             print(f"  {C.DIM}Get key: https://aistudio.google.com/app/apikey{C.END}")
@@ -272,14 +268,14 @@ def manage_api_key():
 
 
 CATEGORIES = [
-    ('person',   '👤  Person (default)',            'Name, DOB, family, city'),
-    ('company',  '🏢  Company / Organization',      'Company, CEO, founder, slogan'),
-    ('place',    '📍  Place / Location',            'City, street, landmarks'),
-    ('gaming',   '🎮  Gaming / Gamer',              'Gamertag, games, clan'),
-    ('social',   '📱  Social Media / Influencer',   'Handle, niche, platform'),
-    ('student',  '🎓  Student / University',        'Name, university, roll no'),
-    ('business', '🏪  Business / Shop',             'Shop name, owner, products'),
-    ('custom',   '🎯  Custom',                      'General questions'),
+    ('person',   'Person (default)',           'Name, DOB, family, city'),
+    ('company',  'Company / Organization',     'Company, CEO, founder, slogan'),
+    ('place',    'Place / Location',           'City, street, landmarks'),
+    ('gaming',   'Gaming / Gamer',             'Gamertag, games, clan'),
+    ('social',   'Social Media / Influencer',  'Handle, niche, platform'),
+    ('student',  'Student / University',       'Name, university, roll no'),
+    ('business', 'Business / Shop',            'Shop name, owner, products'),
+    ('custom',   'Custom',                     'General questions'),
 ]
 
 
@@ -287,8 +283,8 @@ def ask_person_questions(info):
     section("PERSON DETAILS")
     info['first_name'] = ask_field("First name", "Example: ali, ahmed")
     info['last_name']  = ask_field("Last name", "Example: khan, smith")
-    info['nickname']   = ask_field("Nickname (comma for multiple)", "Example: alu, sunny")
-    info['username']   = ask_field("Username (comma for multiple)", "Example: alikhan92")
+    info['nickname']   = ask_field("Nickname (comma)", "Example: alu, sunny")
+    info['username']   = ask_field("Username (comma)", "Example: alikhan92")
     section("DATE OF BIRTH")
     print(f"  {C.DIM}DDMMYYYY (15081998) | DDMMYY (150898) | YYYY (1998){C.END}")
     dob = ask_field("Date of birth", "Example: 15081998")
@@ -314,23 +310,23 @@ def ask_person_questions(info):
 
 def ask_company_questions(info):
     section("COMPANY DETAILS")
-    info['company']   = ask_field("Company name (comma)", "Example: google, microsoft")
-    info['short_name'] = ask_field("Short name / Abbreviation", "Example: goog")
-    info['founded']   = ask_field("Founded year", "Example: 1998")
-    info['ceo']       = ask_field("CEO name (comma)", "Example: sundar_pichai")
-    info['founder']   = ask_field("Founder (comma)", "Example: larry_page")
-    info['manager']   = ask_field("Manager name", "Example: john")
-    info['slogan']    = ask_field("Slogan", "Example: just_do_it")
-    info['product']   = ask_field("Products", "Example: search, android")
+    info['company']    = ask_field("Company name (comma)", "Example: PNY Trainings, PNY")
+    info['short_name'] = ask_field("Short name / Abbreviation", "Example: PNY")
+    info['founded']    = ask_field("Founded year", "Example: 2026")
+    info['ceo']        = ask_field("CEO name (comma)", "Example: sundar_pichai")
+    info['founder']    = ask_field("Founder (comma)", "Example: Wahab Yonus")
+    info['manager']    = ask_field("Manager name", "Example: Abdullah")
+    info['slogan']     = ask_field("Slogan", "Example: just_do_it")
+    info['product']    = ask_field("Products", "Example: Trainings")
     section("LOCATION")
-    info['city']      = ask_field("City (comma)", "Example: california")
-    info['country']   = ask_field("Country", "Example: usa")
-    info['address']   = ask_field("Address keyword", "Example: mountain_view")
+    info['city']       = ask_field("City (comma)", "Example: Lahore")
+    info['country']    = ask_field("Country", "Example: Pakistan")
+    info['address']    = ask_field("Address keyword", "Example: Allama Iqbal Town")
     section("CULTURE")
-    info['industry']  = ask_field("Industry", "Example: tech")
-    info['department'] = ask_field("Department", "Example: engineering")
-    info['extra']     = ask_field("Extra (comma)", "Example: employee, staff")
-    info['dob']       = ""
+    info['industry']   = ask_field("Industry", "Example: Education")
+    info['department'] = ask_field("Department", "Example: Education")
+    info['extra']      = ask_field("Extra (comma)", "Example: welcome, 2026")
+    info['dob']        = ""
 
 
 def ask_place_questions(info):
@@ -620,9 +616,12 @@ def generate_wordlist(info):
         passwords.append(pw)
         return True
 
-    # Priority 1: two-token + separator
-    for a in all_tokens:
-        for b in all_tokens:
+    # SHORT tokens first (welcome, PNY, wahab) — most important
+    short_tokens = sorted(all_tokens, key=lambda t: len(t))[:40]
+
+    # Priority 1: two-token + separator (SHORT tokens first)
+    for a in short_tokens:
+        for b in short_tokens:
             if a == b:
                 continue
             for sep in ['@', '_', '.', '-', '#', '$', '!']:
@@ -631,13 +630,13 @@ def generate_wordlist(info):
             if len(passwords) >= max_size: break
         if len(passwords) >= max_size: break
 
-    # Priority 2: two-token + number
+    # Priority 2: two-token + number (SHORT tokens first)
     if len(passwords) < max_size:
-        for a in all_tokens:
-            for b in all_tokens:
+        for a in short_tokens:
+            for b in short_tokens:
                 if a == b:
                     continue
-                for n in ['1', '12', '123', '1234', '007', '786']:
+                for n in ['1', '12', '123', '1234', '007', '786', '2026']:
                     add(f"{a}{b}{n}")
                     add(f"{a}{n}{b}")
                     if len(passwords) >= max_size: break
@@ -704,11 +703,11 @@ def generate_wordlist(info):
 
     # Priority 10: two-token + sep + number
     if len(passwords) < max_size:
-        for a in all_tokens[:len(unique_base) * 2]:
-            for b in all_tokens[:len(unique_base) * 2]:
+        for a in short_tokens:
+            for b in short_tokens:
                 if a == b: continue
                 for sep in ['@', '_', '.']:
-                    for n in ['1', '123', '1234']:
+                    for n in ['1', '123', '1234', '2026']:
                         add(f"{a}{sep}{b}{n}")
                         if len(passwords) >= max_size: break
                     if len(passwords) >= max_size: break
@@ -728,21 +727,12 @@ def save_wordlist(passwords, output_file):
             f.write(p + '\n')
     size_mb = os.path.getsize(output_file) / (1024 * 1024)
     print(f"  {C.GREEN}[OK]{C.END} Saved: {C.BOLD}{os.path.abspath(output_file)}{C.END}")
+    print(f"  {C.GREEN}[OK]{C.END} Size : {size_mb:.2f} MB")
 
 
-def main():
-    info = ask_questions()
-    section("GENERATING WORDLIST")
-    passwords = generate_wordlist(info)
-    if passwords:
-        section("SAVING WORDLIST")
-        save_wordlist(passwords, info['output'])
-        section("DONE")
-        print(f"  {C.GREEN}[OK]{C.END} Wordlist generation complete!")
-    else:
-        print(f"  {C.RED}[!] No passwords generated.{C.END}")
-        sys.exit(1)
-
-
-if __name__ == "__main__":
-    main()
+def ai_refine_mode(passwords, info, min_len, max_len):
+    print()
+    print(f"{C.CYAN}{'=' * 65}{C.END}")
+    print(f"  {C.BOLD}{C.HEADER}AI REFINE MODE{C.END}")
+    print(f"{C.CYAN}{'=' * 65}{C.END}")
+    print()
