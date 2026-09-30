@@ -202,14 +202,40 @@ def save_config(config):
 
 
 def get_api_key():
-    env_key = os.environ.get('GEMINI_API_KEY', '').strip() or os.environ.get('API_KEY', '').strip()
-    if env_key:
-        return env_key, 'env'
+    env_checks = [
+        ('GEMINI_API_KEY', 'gemini'),
+        ('OPENAI_API_KEY', 'openai'),
+        ('CLAUDE_API_KEY', 'claude'),
+        ('API_KEY', 'custom'),
+    ]
+    for env_var, provider in env_checks:
+        key = os.environ.get(env_var, '').strip()
+        if key:
+            return key, provider
+
     config = load_config()
-    key = config.get('gemini_api_key', '').strip() or config.get('api_key', '').strip()
+    for p in ('gemini', 'openai', 'claude'):
+        key = (config.get(f'{p}_api_key', '') or '').strip()
+        if key:
+            return key, p
+
+    key = (config.get('api_key', '') or '').strip()
     if key:
-        return key, 'file'
+        provider = config.get('ai_provider', 'custom') or 'custom'
+        return key, provider
+
     return '', 'none'
+
+
+def save_api_key(key, provider):
+    config = load_config()
+    config['api_key'] = key
+    if provider:
+        config[f'{provider}_api_key'] = key
+        config['ai_provider'] = provider
+    else:
+        config['ai_provider'] = config.get('ai_provider', 'gemini')
+    return save_config(config)
 
 
 def ask_ai_provider(default='gemini'):
@@ -217,7 +243,7 @@ def ask_ai_provider(default='gemini'):
     options = [
         ('gemini', 'Google Gemini', 'Default'),
         ('openai', 'OpenAI (ChatGPT)', 'Not implemented yet'),
-        ('anthropic', 'Anthropic (Claude)', 'Not implemented yet'),
+        ('claude', 'Anthropic (Claude)', 'Not implemented yet'),
         ('custom', 'Custom / Other', 'Uses Gemini fallback for now'),
     ]
     print()
@@ -226,13 +252,14 @@ def ask_ai_provider(default='gemini'):
         if desc:
             print(f"       {C.DIM}{desc}{C.END}")
     print()
+    default_keys = [o[0] for o in options]
     while True:
         try:
             val = input(f"  {C.CYAN}>{C.END} ").strip()
         except EOFError:
-            return default if default in [o[0] for o in options] else 'gemini'
+            return default if default in default_keys else 'gemini'
         if not val:
-            return default if default in [o[0] for o in options] else 'gemini'
+            return default if default in default_keys else 'gemini'
         try:
             n = int(val)
             if 1 <= n <= len(options):
@@ -246,37 +273,69 @@ def ask_ai_provider(default='gemini'):
 
 def manage_api_key():
     while True:
-        key, source = get_api_key()
+        config = load_config()
+        file_has_key = bool(
+            (config.get('api_key') or '').strip() or
+            any((config.get(f'{p}_api_key') or '').strip() for p in ('gemini', 'openai', 'claude'))
+        )
+
         section("API KEY MANAGEMENT")
-        if key:
-            masked = key[:8] + '...' + key[-4:] if len(key) > 12 else '***'
-            source_label = 'Environment Variable' if source == 'env' else f'Local ({CONFIG_FILE})'
+
+        env_key = None
+        env_provider = None
+        for env_var, provider in [
+            ('GEMINI_API_KEY', 'gemini'),
+            ('OPENAI_API_KEY', 'openai'),
+            ('CLAUDE_API_KEY', 'claude'),
+            ('API_KEY', 'custom')
+        ]:
+            key = os.environ.get(env_var, '').strip()
+            if key:
+                env_key = key
+                env_provider = provider
+                break
+
+        if env_key:
+            masked = env_key[:8] + '...' + env_key[-4:] if len(env_key) > 12 else '***'
             print(f"  {C.GREEN}[OK]{C.END} Current key : {C.BOLD}{masked}{C.END}")
-            print(f"  {C.DIM}Source: {source_label}{C.END}")
+            print(f"  {C.DIM}Source: Environment Variable ({env_provider.upper()}){C.END}")
+        elif file_has_key:
+            key, provider = get_api_key()
+            masked = key[:8] + '...' + key[-4:] if len(key) > 12 else '***'
+            print(f"  {C.GREEN}[OK]{C.END} Current key : {C.BOLD}{masked}{C.END}")
+            print(f"  {C.DIM}Source: Local ({CONFIG_FILE})  Provider: {provider.upper()}{C.END}")
         else:
             print(f"  {C.YELLOW}[!]{C.END} No API key configured")
-            print(f"  {C.DIM}Get free Gemini key: https://aistudio.google.com/app/apikey{C.END}")
-        config = load_config()
-        provider = config.get('ai_provider', 'gemini')
-        print(f"  {C.DIM}Provider: {provider.upper()}{C.END}")
+            print(f"  {C.DIM}Get AI API key:{C.END}")
+            print(f"    {C.DIM}Gemini   : https://aistudio.google.com/app/apikey{C.END}")
+            print(f"    {C.DIM}OpenAI   : https://platform.openai.com/api-keys{C.END}")
+            print(f"    {C.DIM}Claude   : https://console.anthropic.com/settings/keys{C.END}")
+
         print()
         print(f"  {C.BOLD}Options:{C.END}")
         print(f"    1. Add / Replace API key")
-        if key and source == 'file':
+        if file_has_key:
             print(f"    2. Delete API key")
             print(f"    3. Back")
-            max_c = 3
+            max_choice = 3
         else:
             print(f"    2. Back")
-            max_c = 2
+            max_choice = 2
         print()
+
         try:
             choice = input(f"  {C.CYAN}>{C.END} ").strip()
         except EOFError:
             return
+
         if choice == '1':
             print()
-            print(f"  {C.DIM}Any non-empty value is accepted. Use your provider's actual API key.{C.END}")
+            print(f"  {C.DIM}Get AI API key:{C.END}")
+            print(f"    {C.DIM}Gemini   : https://aistudio.google.com/app/apikey{C.END}")
+            print(f"    {C.DIM}OpenAI   : https://platform.openai.com/api-keys{C.END}")
+            print(f"    {C.DIM}Claude   : https://console.anthropic.com/settings/keys{C.END}")
+            print()
+            provider = ask_ai_provider(default=config.get('ai_provider', 'gemini'))
             try:
                 new_key = input(f"  {C.YELLOW}?{C.END} Paste API key: ").strip()
             except EOFError:
@@ -284,26 +343,48 @@ def manage_api_key():
             if not new_key:
                 print(f"  {C.RED}[!] Empty key not allowed.{C.END}")
                 continue
-            config = load_config()
-            config['gemini_api_key'] = new_key
-            config['api_key'] = new_key
-            config['ai_provider'] = ask_ai_provider(default=config.get('ai_provider', 'gemini'))
-            if save_config(config):
+            if save_api_key(new_key, provider):
                 print(f"  {C.GREEN}[OK]{C.END} Key saved: {CONFIG_FILE}")
-                print(f"  {C.GREEN}[OK]{C.END} Provider saved: {config['ai_provider'].upper()}")
+                print(f"  {C.GREEN}[OK]{C.END} Provider saved: {provider.upper()}")
             input(f"\n  Press Enter...")
-        elif choice == '2' and key and source == 'file':
+        elif choice == '2' and file_has_key:
             if ask_yes_no("Delete API key?", default=False):
                 config = load_config()
-                config.pop('gemini_api_key', None)
                 config.pop('api_key', None)
+                for p in ('gemini', 'openai', 'claude'):
+                    config.pop(f'{p}_api_key', None)
+                config.pop('ai_provider', None)
                 save_config(config)
                 print(f"  {C.GREEN}[OK]{C.END} Deleted.")
             input(f"\n  Press Enter...")
-        elif choice == str(max_c):
+        elif choice == str(max_choice):
             return
         else:
             print(f"  {C.RED}[!] Invalid.{C.END}")
+
+
+def call_ai_api(key, provider, payload, timeout=90):
+    provider = (provider or 'gemini').lower()
+
+    if provider == 'gemini':
+        url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent"
+    elif provider == 'openai':
+        print(f"  {C.YELLOW}[!]{C.END} OpenAI not yet implemented. Using Gemini fallback.")
+        url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent"
+    elif provider == 'claude':
+        print(f"  {C.YELLOW}[!]{C.END} Claude not yet implemented. Using Gemini fallback.")
+        url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent"
+    else:
+        url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent"
+
+    req = urllib.request.Request(
+        f"{url}?key={key}",
+        data=json.dumps(payload).encode('utf-8'),
+        headers={'Content-Type': 'application/json'},
+        method='POST'
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return json.loads(resp.read().decode('utf-8'))
 
 
 CATEGORIES = [
@@ -783,21 +864,13 @@ def ai_refine_mode(passwords, info, min_len, max_len):
     config['ai_provider'] = provider
     save_config(config)
 
-    if provider != 'gemini':
-        print(f"  {C.YELLOW}[!] {provider.upper()} not yet implemented, using Gemini.{C.END}")
-        provider = 'gemini'
-
-    key, source = get_api_key()
+    key, _ = get_api_key()
     if not key:
-        print()
-        print(f"  {C.YELLOW}Get free key: https://aistudio.google.com/app/apikey{C.END}")
-        print()
-        if ask_yes_no("Set up API key now?", default=True):
-            manage_api_key()
-            key, source = get_api_key()
-        if not key:
-            print(f"  {C.RED}[!] No key, skipping.{C.END}")
-            return passwords
+        manage_api_key()
+        key, _ = get_api_key()
+    if not key:
+        print(f"  {C.RED}[!] No key, skipping.{C.END}")
+        return passwords
 
     unique_base, _ = build_token_pool(info)
     if not unique_base:
@@ -828,7 +901,7 @@ def ai_refine_mode(passwords, info, min_len, max_len):
             count = 500
 
         print()
-        print(f"  {C.CYAN}[*]{C.END} Sending to Gemini...")
+        print(f"  {C.CYAN}[*]{C.END} Sending to {provider.upper()}...")
 
         tokens_str = ', '.join(f'"{t}"' for t in unique_base[:60])
         existing_set = set(passwords)
@@ -855,14 +928,7 @@ RULES:
         }
 
         try:
-            req = urllib.request.Request(
-                f"{GEMINI_URL}?key={key}",
-                data=json.dumps(payload).encode('utf-8'),
-                headers={'Content-Type': 'application/json'},
-                method='POST'
-            )
-            with urllib.request.urlopen(req, timeout=90) as resp:
-                result = json.loads(resp.read().decode('utf-8'))
+            result = call_ai_api(key, provider, payload, timeout=90)
             text = result['candidates'][0]['content']['parts'][0]['text']
 
             added = 0
