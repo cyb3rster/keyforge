@@ -202,14 +202,46 @@ def save_config(config):
 
 
 def get_api_key():
-    env_key = os.environ.get('GEMINI_API_KEY', '').strip()
+    env_key = os.environ.get('GEMINI_API_KEY', '').strip() or os.environ.get('API_KEY', '').strip()
     if env_key:
         return env_key, 'env'
     config = load_config()
-    key = config.get('gemini_api_key', '').strip()
+    key = config.get('gemini_api_key', '').strip() or config.get('api_key', '').strip()
     if key:
         return key, 'file'
     return '', 'none'
+
+
+def ask_ai_provider(default='gemini'):
+    section("AI PROVIDER")
+    options = [
+        ('gemini', 'Google Gemini', 'Default'),
+        ('openai', 'OpenAI (ChatGPT)', 'Not implemented yet'),
+        ('anthropic', 'Anthropic (Claude)', 'Not implemented yet'),
+        ('custom', 'Custom / Other', 'Uses Gemini fallback for now'),
+    ]
+    print()
+    for i, (key, label, desc) in enumerate(options, 1):
+        print(f"    {C.BOLD}{i}.{C.END} {label}")
+        if desc:
+            print(f"       {C.DIM}{desc}{C.END}")
+    print()
+    while True:
+        try:
+            val = input(f"  {C.CYAN}>{C.END} ").strip()
+        except EOFError:
+            return default if default in [o[0] for o in options] else 'gemini'
+        if not val:
+            return default if default in [o[0] for o in options] else 'gemini'
+        try:
+            n = int(val)
+            if 1 <= n <= len(options):
+                return options[n-1][0]
+        except ValueError:
+            for key, label, desc in options:
+                if val.lower() == key.lower():
+                    return key
+        print(f"    {C.RED}[!] Invalid. Try 1-{len(options)}.{C.END}")
 
 
 def manage_api_key():
@@ -223,7 +255,10 @@ def manage_api_key():
             print(f"  {C.DIM}Source: {source_label}{C.END}")
         else:
             print(f"  {C.YELLOW}[!]{C.END} No API key configured")
-            print(f"  {C.DIM}Get free: https://aistudio.google.com/app/apikey{C.END}")
+            print(f"  {C.DIM}Get free Gemini key: https://aistudio.google.com/app/apikey{C.END}")
+        config = load_config()
+        provider = config.get('ai_provider', 'gemini')
+        print(f"  {C.DIM}Provider: {provider.upper()}{C.END}")
         print()
         print(f"  {C.BOLD}Options:{C.END}")
         print(f"    1. Add / Replace API key")
@@ -241,23 +276,27 @@ def manage_api_key():
             return
         if choice == '1':
             print()
-            print(f"  {C.DIM}Get key: https://aistudio.google.com/app/apikey{C.END}")
+            print(f"  {C.DIM}Any non-empty value is accepted. Use your provider's actual API key.{C.END}")
             try:
                 new_key = input(f"  {C.YELLOW}?{C.END} Paste API key: ").strip()
             except EOFError:
                 continue
             if not new_key:
-                print(f"  {C.RED}[!] Empty.{C.END}")
+                print(f"  {C.RED}[!] Empty key not allowed.{C.END}")
                 continue
             config = load_config()
             config['gemini_api_key'] = new_key
+            config['api_key'] = new_key
+            config['ai_provider'] = ask_ai_provider(default=config.get('ai_provider', 'gemini'))
             if save_config(config):
                 print(f"  {C.GREEN}[OK]{C.END} Key saved: {CONFIG_FILE}")
+                print(f"  {C.GREEN}[OK]{C.END} Provider saved: {config['ai_provider'].upper()}")
             input(f"\n  Press Enter...")
         elif choice == '2' and key and source == 'file':
             if ask_yes_no("Delete API key?", default=False):
                 config = load_config()
                 config.pop('gemini_api_key', None)
+                config.pop('api_key', None)
                 save_config(config)
                 print(f"  {C.GREEN}[OK]{C.END} Deleted.")
             input(f"\n  Press Enter...")
@@ -281,10 +320,10 @@ CATEGORIES = [
 
 def ask_person_questions(info):
     section("PERSON DETAILS")
-    info['first_name'] = ask_field("First name", "Example: ali, ahmed")
-    info['last_name']  = ask_field("Last name", "Example: khan, smith")
-    info['nickname']   = ask_field("Nickname (comma)", "Example: alu, sunny")
-    info['username']   = ask_field("Username (comma)", "Example: alikhan92")
+    info['first_name'] = ask_field("First name", "Example: Ali, John, Rahul")
+    info['last_name']  = ask_field("Last name", "Example: Khan, Smith, Kumar")
+    info['nickname']   = ask_field("Nickname (comma)", "Example: Ali, Johnny, Sunny")
+    info['username']   = ask_field("Username (comma)", "Example: alikhan92, jsmith")
     section("DATE OF BIRTH")
     print(f"  {C.DIM}DDMMYYYY (15081998) | DDMMYY (150898) | YYYY (1998){C.END}")
     dob = ask_field("Date of birth", "Example: 15081998")
@@ -294,144 +333,144 @@ def ask_person_questions(info):
     else:
         info['dob'] = ""
     section("FAMILY / RELATIONS")
-    info['partner'] = ask_field("Partner name", "Example: sara")
-    info['child']   = ask_field("Child name(s)", "Example: hamza")
-    info['parent']  = ask_field("Parent name(s)", "Example: imran")
-    info['sibling'] = ask_field("Sibling name(s)", "Example: ahmed")
+    info['partner'] = ask_field("Partner name", "Example: Sarah, Emma")
+    info['child']   = ask_field("Child name(s)", "Example: Aisha, Adam")
+    info['parent']  = ask_field("Parent name(s)", "Example: Ahmed, Maria")
+    info['sibling'] = ask_field("Sibling name(s)", "Example: Sara, Ali")
     section("PERSONAL INFO")
-    info['pet']     = ask_field("Pet name(s)", "Example: tommy")
-    info['city']    = ask_field("City (comma)", "Example: lahore, karachi")
-    info['company'] = ask_field("Company / School", "Example: google, fast")
-    info['hobby']   = ask_field("Hobby (comma)", "Example: cricket, gaming")
+    info['pet']     = ask_field("Pet name(s)", "Example: Max, Lucy, Teddy")
+    info['city']    = ask_field("City (comma)", "Example: New York, London, Tokyo")
+    info['company'] = ask_field("Company / School", "Example: Google, Microsoft, Stanford")
+    info['hobby']   = ask_field("Hobby (comma)", "Example: gaming, reading, travel")
     info['phone_last4'] = ask_field("Phone last 4", "Example: 4567")
-    info['vehicle'] = ask_field("Vehicle number", "Example: leB-1234")
-    info['extra']   = ask_field("Extra words (comma)", "Example: love, admin")
+    info['vehicle'] = ask_field("Vehicle number", "Example: AB-1234")
+    info['extra']   = ask_field("Extra words (comma)", "Example: love, admin, hello")
 
 
 def ask_company_questions(info):
     section("COMPANY DETAILS")
-    info['company']    = ask_field("Company name (comma)", "Example: PNY Trainings, PNY")
-    info['short_name'] = ask_field("Short name / Abbreviation", "Example: PNY")
-    info['founded']    = ask_field("Founded year", "Example: 2026")
-    info['ceo']        = ask_field("CEO name (comma)", "Example: sundar_pichai")
-    info['founder']    = ask_field("Founder (comma)", "Example: Wahab Yonus")
-    info['manager']    = ask_field("Manager name", "Example: Abdullah")
-    info['slogan']     = ask_field("Slogan", "Example: just_do_it")
-    info['product']    = ask_field("Products", "Example: Trainings")
+    info['company']    = ask_field("Company name (comma)", "Example: Google, Microsoft, Tesla")
+    info['short_name'] = ask_field("Short name / Abbreviation", "Example: G, MSFT, TSLA")
+    info['founded']    = ask_field("Founded year", "Example: 2024")
+    info['ceo']        = ask_field("CEO name (comma)", "Example: Sundar Pichai, Satya Nadella")
+    info['founder']    = ask_field("Founder (comma)", "Example: Larry Page, Elon Musk")
+    info['manager']    = ask_field("Manager name", "Example: John, Sarah, Ahmed")
+    info['slogan']     = ask_field("Slogan", "Example: Innovate, Build, Grow")
+    info['product']    = ask_field("Products", "Example: Search, Android, Cloud")
     section("LOCATION")
-    info['city']       = ask_field("City (comma)", "Example: Lahore")
-    info['country']    = ask_field("Country", "Example: Pakistan")
-    info['address']    = ask_field("Address keyword", "Example: Allama Iqbal Town")
+    info['city']       = ask_field("City (comma)", "Example: New York, London, Tokyo")
+    info['country']    = ask_field("Country", "Example: United States, United Kingdom, Japan")
+    info['address']    = ask_field("Address keyword", "Example: Silicon Valley, Wall Street")
     section("CULTURE")
-    info['industry']   = ask_field("Industry", "Example: Education")
-    info['department'] = ask_field("Department", "Example: Education")
-    info['extra']      = ask_field("Extra (comma)", "Example: welcome, 2026")
+    info['industry']   = ask_field("Industry", "Example: Tech, Finance, Healthcare")
+    info['department'] = ask_field("Department", "Example: Engineering, Sales, Support")
+    info['extra']      = ask_field("Extra (comma)", "Example: welcome, admin, staff")
     info['dob']        = ""
 
 
 def ask_place_questions(info):
     section("PLACE DETAILS")
-    info['place']     = ask_field("Main place / City", "Example: lahore")
-    info['area']      = ask_field("Area (comma)", "Example: gulberg, dha")
-    info['street']    = ask_field("Street name", "Example: mall_road")
-    info['landmark']  = ask_field("Landmark", "Example: liberty_market")
-    info['postal']    = ask_field("Postal code", "Example: 54000")
+    info['place']     = ask_field("Main place / City", "Example: Paris, Seattle, Cairo")
+    info['area']      = ask_field("Area (comma)", "Example: Downtown, Midtown, Old Town")
+    info['street']    = ask_field("Street name", "Example: Main Street, Market Road")
+    info['landmark']  = ask_field("Landmark", "Example: Central Park, Tower Bridge")
+    info['postal']    = ask_field("Postal code", "Example: 10001, 75001")
     section("PLACE INFO")
-    info['country']   = ask_field("Country", "Example: pakistan")
-    info['province']  = ask_field("Province", "Example: punjab")
-    info['language']  = ask_field("Local language", "Example: urdu")
-    info['nickname']  = ask_field("Nickname (comma)", "Example: city_of_gardens")
-    info['famous_for'] = ask_field("Famous for", "Example: food")
-    info['extra']     = ask_field("Extra (comma)", "Example: tourism")
+    info['country']   = ask_field("Country", "Example: United States, France, Japan")
+    info['province']  = ask_field("Province", "Example: California, Paris, Tokyo")
+    info['language']  = ask_field("Local language", "Example: English, French, Spanish")
+    info['nickname']  = ask_field("Nickname (comma)", "Example: city_of_lights, emerald_city")
+    info['famous_for'] = ask_field("Famous for", "Example: food, tourism, history")
+    info['extra']     = ask_field("Extra (comma)", "Example: travel, tourism, culture")
     info['company']   = ""
     info['dob']       = ""
 
 
 def ask_gaming_questions(info):
     section("GAMER DETAILS")
-    info['username']   = ask_field("Gamertag (comma)", "Example: sniper_pro")
-    info['first_name'] = ask_field("Real name", "Example: ali")
-    info['last_name']  = ask_field("Surname", "Example: khan")
-    info['nickname']   = ask_field("Nickname", "Example: alu")
+    info['username']   = ask_field("Gamertag (comma)", "Example: sniper_pro, pixel_ace, gamer_77")
+    info['first_name'] = ask_field("Real name", "Example: Ali, John")
+    info['last_name']  = ask_field("Surname", "Example: Khan, Smith")
+    info['nickname']   = ask_field("Nickname", "Example: Ace, Storm")
     section("GAMING INFO")
-    info['game']      = ask_field("Games (comma)", "Example: pubg, valorant")
-    info['platform']  = ask_field("Platform(s)", "Example: pc, ps5")
-    info['clan']      = ask_field("Clan name", "Example: team_soul")
-    info['rank']      = ask_field("Rank", "Example: diamond")
-    info['fav_weapon'] = ask_field("Fav weapon", "Example: awm")
-    info['stream']    = ask_field("Stream platform", "Example: twitch")
-    info['discord']   = ask_field("Discord tag", "Example: alu_1234")
+    info['game']      = ask_field("Games (comma)", "Example: Fortnite, Valorant, Minecraft")
+    info['platform']  = ask_field("Platform(s)", "Example: PC, PS5, Xbox")
+    info['clan']      = ask_field("Clan name", "Example: Red Team, Night Owls")
+    info['rank']      = ask_field("Rank", "Example: Diamond, Gold")
+    info['fav_weapon'] = ask_field("Fav weapon", "Example: AWP, M4, Sword")
+    info['stream']    = ask_field("Stream platform", "Example: Twitch, YouTube")
+    info['discord']   = ask_field("Discord tag", "Example: ace_1234, gamer_77")
     section("COMMUNITY")
-    info['city']      = ask_field("City", "Example: lahore")
-    info['extra']     = ask_field("Extra (comma)", "Example: pro, elite")
+    info['city']      = ask_field("City", "Example: New York, London, Tokyo")
+    info['extra']     = ask_field("Extra (comma)", "Example: pro, elite, casual")
     info['company']   = ""
     info['dob']       = ""
 
 
 def ask_social_questions(info):
     section("SOCIAL MEDIA DETAILS")
-    info['username']  = ask_field("Handle (comma)", "Example: alikhan")
-    info['first_name'] = ask_field("Real name", "Example: ali")
-    info['last_name'] = ask_field("Surname", "Example: khan")
-    info['nickname']  = ask_field("Nickname", "Example: alu")
+    info['username']  = ask_field("Handle (comma)", "Example: ali_khan, jsmith")
+    info['first_name'] = ask_field("Real name", "Example: Ali, John")
+    info['last_name'] = ask_field("Surname", "Example: Khan, Smith")
+    info['nickname']  = ask_field("Nickname", "Example: Johnny, Sunny")
     section("CONTENT INFO")
-    info['platform']  = ask_field("Platforms", "Example: instagram, youtube")
-    info['niche']     = ask_field("Niche", "Example: tech, gaming")
-    info['subs_count'] = ask_field("Sub count", "Example: 100k")
-    info['brand']     = ask_field("Brand name", "Example: nike")
+    info['platform']  = ask_field("Platforms", "Example: Instagram, YouTube, TikTok")
+    info['niche']     = ask_field("Niche", "Example: tech, gaming, travel")
+    info['subs_count'] = ask_field("Sub count", "Example: 100k, 1m")
+    info['brand']     = ask_field("Brand name", "Example: Nike, Apple, Sony")
     section("SOCIAL INFO")
-    info['city']      = ask_field("City", "Example: lahore")
-    info['email_word'] = ask_field("Email keyword", "Example: business")
-    info['extra']     = ask_field("Extra (comma)", "Example: viral, reels")
+    info['city']      = ask_field("City", "Example: New York, London, Tokyo")
+    info['email_word'] = ask_field("Email keyword", "Example: hello, business, contact")
+    info['extra']     = ask_field("Extra (comma)", "Example: viral, reels, creator")
     info['company']   = ""
     info['dob']       = ""
 
 
 def ask_student_questions(info):
     section("STUDENT DETAILS")
-    info['first_name'] = ask_field("First name", "Example: ali")
-    info['last_name']  = ask_field("Last name", "Example: khan")
-    info['nickname']   = ask_field("Nickname", "Example: alu")
-    info['username']   = ask_field("Username", "Example: alikhan92")
+    info['first_name'] = ask_field("First name", "Example: Ali, John")
+    info['last_name']  = ask_field("Last name", "Example: Khan, Smith")
+    info['nickname']   = ask_field("Nickname", "Example: Johnny, Sunny")
+    info['username']   = ask_field("Username", "Example: alikhan92, jsmith")
     section("UNIVERSITY")
-    info['company']    = ask_field("University (comma)", "Example: fast, nust")
-    info['department'] = ask_field("Department", "Example: cs, ee")
-    info['roll_no']    = ask_field("Roll number", "Example: 20cs123")
-    info['semester']   = ask_field("Semester", "Example: 4th")
-    info['section']    = ask_field("Section", "Example: a")
+    info['company']    = ask_field("University (comma)", "Example: Stanford, Oxford, MIT")
+    info['department'] = ask_field("Department", "Example: Computer Science, Engineering")
+    info['roll_no']    = ask_field("Roll number", "Example: 20CS123")
+    info['semester']   = ask_field("Semester", "Example: 4th, 8th")
+    info['section']    = ask_field("Section", "Example: A, B, C")
     section("ACADEMIC")
-    info['city']       = ask_field("City", "Example: lahore")
-    info['hobby']      = ask_field("Hobby", "Example: coding")
-    info['extra']      = ask_field("Extra (comma)", "Example: student, exam")
+    info['city']       = ask_field("City", "Example: New York, London, Tokyo")
+    info['hobby']      = ask_field("Hobby", "Example: coding, gaming, reading")
+    info['extra']      = ask_field("Extra (comma)", "Example: student, exam, scholar")
     info['dob']        = ""
 
 
 def ask_business_questions(info):
     section("BUSINESS DETAILS")
-    info['company']    = ask_field("Shop name (comma)", "Example: ali_store")
-    info['owner']      = ask_field("Owner name", "Example: ali")
-    info['slogan']     = ask_field("Slogan", "Example: best_prices")
-    info['type']       = ask_field("Business type", "Example: electronics")
+    info['company']    = ask_field("Shop name (comma)", "Example: Green Market, City Store")
+    info['owner']      = ask_field("Owner name", "Example: Ali, Sarah")
+    info['slogan']     = ask_field("Slogan", "Example: Quality First, Fast Service")
+    info['type']       = ask_field("Business type", "Example: Electronics, Fashion, Food")
     section("BUSINESS INFO")
-    info['city']       = ask_field("City (comma)", "Example: lahore")
-    info['area']       = ask_field("Area name", "Example: hall_road")
-    info['product']    = ask_field("Products", "Example: mobile")
+    info['city']       = ask_field("City (comma)", "Example: New York, London, Tokyo")
+    info['area']       = ask_field("Area name", "Example: Downtown, Main Street")
+    info['product']    = ask_field("Products", "Example: Laptops, Clothes, Coffee")
     info['phone_last4'] = ask_field("Phone last 4", "Example: 4567")
     section("EXTRA")
-    info['extra']      = ask_field("Extra (comma)", "Example: shop, sale")
+    info['extra']      = ask_field("Extra (comma)", "Example: sale, new arrival, staff")
     info['dob']        = ""
 
 
 def ask_custom_questions(info):
     section("CUSTOM DETAILS")
-    info['first_name'] = ask_field("Main word 1", "Example: ali")
-    info['last_name']  = ask_field("Main word 2", "Example: khan")
-    info['nickname']   = ask_field("Alternate (comma)", "Example: alu, lhr")
-    info['username']   = ask_field("Handle", "Example: alikhan92")
-    info['city']       = ask_field("Location", "Example: lahore")
-    info['company']    = ask_field("Organization", "Example: company")
-    info['hobby']      = ask_field("Interest", "Example: gaming")
-    info['extra']      = ask_field("Extra (comma)", "Example: cyber, admin")
+    info['first_name'] = ask_field("Main word 1", "Example: Alpha, Nova, Pixel")
+    info['last_name']  = ask_field("Main word 2", "Example: Studio, Labs, Works")
+    info['nickname']   = ask_field("Alternate (comma)", "Example: Alpha, Nova, Echo")
+    info['username']   = ask_field("Handle", "Example: alpha123, nova_01")
+    info['city']       = ask_field("Location", "Example: New York, London, Tokyo")
+    info['company']    = ask_field("Organization", "Example: Atlas, Nexus, Horizon")
+    info['hobby']      = ask_field("Interest", "Example: gaming, coding, travel")
+    info['extra']      = ask_field("Extra (comma)", "Example: admin, staff, welcome")
     info['dob']        = ""
 
 
@@ -739,6 +778,15 @@ def ai_refine_mode(passwords, info, min_len, max_len):
     if not ask_yes_no("Use AI to generate more passwords?", default=False):
         return passwords
 
+    config = load_config()
+    provider = ask_ai_provider(default=config.get('ai_provider', 'gemini'))
+    config['ai_provider'] = provider
+    save_config(config)
+
+    if provider != 'gemini':
+        print(f"  {C.YELLOW}[!] {provider.upper()} not yet implemented, using Gemini.{C.END}")
+        provider = 'gemini'
+
     key, source = get_api_key()
     if not key:
         print()
@@ -843,7 +891,12 @@ RULES:
             break
 
         except urllib.error.HTTPError as e:
-            print(f"  {C.RED}[!] API error {e.code}{C.END}")
+            try:
+                body = json.loads(e.read().decode('utf-8', 'ignore'))
+                msg = body.get('error', {}).get('message') or body.get('message') or e.reason
+            except Exception:
+                msg = e.reason
+            print(f"  {C.RED}[!] API error {e.code}: {msg}{C.END}")
             break
         except urllib.error.URLError as e:
             print(f"  {C.RED}[!] Network: {e.reason}{C.END}")
