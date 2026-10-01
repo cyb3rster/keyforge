@@ -78,11 +78,11 @@ KeyForge supports **8 intelligent categories** — each asks relevant questions:
 
 - 🎯 **Category-based** intelligent questions
 - 🤖 **AI-powered refinement** with Google Gemini
-- 📝 **Comma-separated multi-values** — `lahore, karachi, london`
+- 📝 **Comma-separated multi-values** — `london, paris, tokyo`
 - ✅ **Confirmation screen** before generation
 - 🌏 **South Asian patterns** (optional) — 786, Allah, Khan
-- 🔐 **Leetspeak variants** — `ali` → `4l1`, `@li`
-- 🔄 **Reversed words** — `ali` → `ila`
+- 🔐 **Leetspeak variants** — `alex` → `4l3x`, `@lex`
+- 🔄 **Reversed words** — `alex` → `xela`
 - 📱 Phone, vehicle, username support
 - 🎛️ **Length filter** — min/max password length
 - ⚡ **Round-robin generation** — every input gets its turn
@@ -107,27 +107,27 @@ Choose target category:
 ? 1
 
 ── PERSON DETAILS ──
-[?] First name              : umer
-[?] Last name / Surname     : imran
-[?] Nickname                : um3r, umer_khan
-[?] Username                : jus_um3rr
-[?] Date of birth           : 03082005
-[?] City                    : lahore, karachi
-[?] Company / School        : cyberster, virtual university
-[?] Hobby                   : hacking, cybersecurity
-[?] Extra words             : cyb3r, um3r, cyberster
+[?] First name              : alex
+[?] Last name / Surname     : smith
+[?] Nickname                : al, alex_s
+[?] Username                : alexsmith92
+[?] Date of birth           : 15081998
+[?] City                    : london, paris
+[?] Company / School        : google, mit
+[?] Hobby                   : cricket, gaming
+[?] Extra words             : admin, hello
 ```
 
 ### Comma Support — All Formats Work
 
 ```
-lahore, karachi, london
-lahore,karachi,london
-lahore , karachi , london
-lahore; karachi; london
+london, paris, tokyo
+london,paris,tokyo
+london , paris , tokyo
+london; paris; tokyo
 ```
 
-All produce the same tokens: `lahore`, `karachi`, `london`
+All produce the same tokens: `london`, `paris`, `tokyo`
 
 ### Confirmation Screen
 
@@ -149,75 +149,69 @@ All produce the same tokens: `lahore`, `karachi`, `london`
 Generated `wordlist.txt` will contain:
 
 ```
-umer
-Umer
-UMER
-remu
-imran
-Imran
-IMRAN
-narmi
-um3r
-Um3r
-jus_um3rr
-lahore
-karachi
-cyberster
-virtual
-university
-hacking
-cybersecurity
-03082005
-030805
-2005
-umerimran
-umer.imran
-umer_imran
-umer@imran
-imran@umer
-um3r@1234
-umer123
-imran123
-um3r123
-lahore123
-cyberster123
-umer!
-imran!
-umer@123
-cyberster@123
+alex
+Alex
+ALEX
+xela
+smith
+Smith
+SMITH
+htims
+al
+alexsmith
+alex.smith
+alex_smith
+asmith
+smithalex
+alexsmith92
+london
+paris
+google
+mit
+cricket
+gaming
+15081998
+150898
+1998
+alex123
+smith123
+alex!
+smith!
+alex@123
+smith@123
 ...
 ```
 
 ## 🤖 AI Refine Mode (Optional)
 
-KeyForge ke paas **AI mode** hai jo Gemini API use karke aur bhi smart passwords banata hai.
+KeyForge has an **AI mode** that uses the Gemini API to generate even smarter passwords.
 
 ### How It Works
 
-1. Base wordlist generate hoti hai (normal flow)
-2. End mein poochha jata hai:
+1. Base wordlist is generated (normal flow)
+2. At the end, the tool asks:
    ```
    🤖 AI REFINE MODE
    
    Current wordlist: 65074 passwords
    ? Use AI to generate more targeted passwords? (y/n) [n]: y
    ```
-3. AI tumhare base tokens ko leke realistic passwords banata hai
-4. Existing list mein add karta hai (duplicates skip karke)
-5. Agar satisfied nahi → naya round with different preferences
+3. AI takes your base tokens and creates realistic passwords
+4. Adds them to the existing list (skipping duplicates)
+5. If not satisfied → new round with different preferences
 
 ### Setup — Get Free API Key
 
-1. Jao: [https://aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey)
-2. Google account se login karo
-3. **"Create API Key"** click karo
-4. Copy karo — key `AIzaSy...` se start hoti hai
+1. Go to: [https://aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey)
+2. Login with Google account
+3. Click **"Create API Key"**
+4. Copy it — the key starts with `AIzaSy...` or `AQ.Ab8...` (both are valid)
 
 ### Store API Key (3 Options)
 
 **Option 1: Built-in menu (Recommended)**
 
-Jab first time AI mode use karo, tool khud poochta hai:
+When you first use AI mode, the tool prompts you:
 
 ```
 🔑 API KEY MANAGEMENT
@@ -231,12 +225,12 @@ Jab first time AI mode use karo, tool khud poochta hai:
 
   └─> 1
 
-  ? Paste your API key: AIzaSy...
+  ? Paste your API key: AIzaSy... or AQ.Ab8...
   [✓] Key saved to: C:\Users\you\.keyforge\config.json
   (Stored locally on your machine only)
 ```
 
-Key sirf tumhari machine pe save hoti hai: `~/.keyforge/config.json`
+Key is only saved on your machine: `~/.keyforge/config.json`
 
 **Option 2: Environment Variable (One-time session)**
 
@@ -258,9 +252,9 @@ Windows:
 ```cmd
 setx GEMINI_API_KEY "AIzaSy...your_key"
 ```
-(CMD restart karna padega)
+(CMD restart required)
 
-Linux/Mac — `~/.bashrc` ya `~/.zshrc` mein add karo:
+Linux/Mac — add to `~/.bashrc` or `~/.zshrc`:
 ```bash
 export GEMINI_API_KEY="AIzaSy...your_key"
 ```
@@ -275,7 +269,7 @@ export GEMINI_API_KEY="AIzaSy...your_key"
   Source       : Local Config
 
   Options:
-    1. Add / Replace API key   ← yahan naya key paste karo
+    1. Add / Replace API key   ← paste new key here
     2. Delete API key
     3. Back
 ```
@@ -285,7 +279,7 @@ export GEMINI_API_KEY="AIzaSy...your_key"
 ```
   Options:
     1. Add / Replace API key
-    2. Delete API key          ← yahan se delete
+    2. Delete API key          ← delete from here
     3. Back
 ```
 
@@ -303,7 +297,7 @@ rm ~/.keyforge/config.json
 
 ### AI Preferences
 
-Jab AI mode start hota hai:
+When AI mode starts:
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -311,9 +305,9 @@ Jab AI mode start hota hai:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   What kind of passwords do you need?
-    1. Simple & short (ali123, khan@1)
-    2. Medium (ali.khan123, khan@2024)
-    3. Complex (Um3r@Khan123, cyb3r_2024!)
+    1. Simple & short (alex123, smith@1)
+    2. Medium (alex.smith123, smith@2024)
+    3. Complex (Al3x@Smith123, cyber_2024!)
     4. All types (recommended)
 
   ? Choose [4]: 4
@@ -327,7 +321,7 @@ Jab AI mode start hota hai:
 
 ### Multi-Round Flow
 
-Pehli round ke baad:
+After the first round:
 
 ```
   [✓] AI returned: 847 passwords
@@ -344,28 +338,28 @@ Pehli round ke baad:
   [*] Starting new round...
 ```
 
-Agar `1` dabao → AI **naye sawal** puchega, **naye preferences** ke saath naye passwords banayega. **Duplicates skip honge**.
+If you press `1` → AI asks **new questions**, generates new passwords with **new preferences**. **Duplicates are skipped.**
 
 ### Duplicate Prevention
 
-- AI ko explicitly bola jata hai: **"DO NOT use any password already in the existing list"**
-- Code level pe bhi filter hai: har AI password existing set mein check hota hai
-- **Kabhi bhi duplicate wordlist mein add nahi hoga**
+- AI is explicitly told: **"DO NOT use any password already in the existing list"**
+- Code-level filter: every AI password is checked against the existing set
+- **Duplicates are never added to the wordlist**
 
 ## 🧠 How Generation Works
 
 KeyForge uses a **priority-based multi-phase strategy**:
 
-1. **Phase 1** — Two-token + separator (`welcome@pny`, `ali_khan`)
-2. **Phase 2** — Two-token + number (`alikhan123`, `pny786`)
-3. **Phase 3** — Simple tokens (`umer`, `imran`)
-4. **Phase 4** — token + number (`umer123`)
-5. **Phase 5** — token + special (`umer!`)
-6. **Phase 6** — token + number + special (`um3r@1234`)
-7. **Phase 7** — Capitalize (`Umer123`)
-8. **Phase 8** — Reverse (`remu`)
-9. **Phase 9** — Three-token combos (`umer_imran_lahore`)
-10. **Phase 10** — Long numbers (`umer2024`)
+1. **Phase 1** — Two-token + separator (`hello@world`, `alex_khan`)
+2. **Phase 2** — Two-token + number (`alexsmith123`, `smith786`)
+3. **Phase 3** — Simple tokens (`alex`, `smith`)
+4. **Phase 4** — token + number (`alex123`)
+5. **Phase 5** — token + special (`alex!`)
+6. **Phase 6** — token + number + special (`al3x@1234`)
+7. **Phase 7** — Capitalize (`Alex123`)
+8. **Phase 8** — Reverse (`xela`)
+9. **Phase 9** — Three-token combos (`alex_smith_london`)
+10. **Phase 10** — Long numbers (`alex2024`)
 
 **Every input gets fair treatment** — no single token dominates.
 
@@ -404,7 +398,7 @@ KeyForge uses a **priority-based multi-phase strategy**:
 
   ⚠  For ethical/authorized use only (own accounts / pentest).
   💡 Leave any field empty to SKIP.
-  💡 Use commas for multiple values: lahore, karachi, london
+  💡 Use commas for multiple values: london, paris, tokyo
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   CHOOSE TARGET CATEGORY
@@ -422,8 +416,8 @@ KeyForge uses a **priority-based multi-phase strategy**:
   └─> 1
 
 ── PERSON DETAILS ──
-[?] First name              : umer
-[?] Last name / Surname     : imran
+[?] First name              : alex
+[?] Last name / Surname     : smith
 ...
 
   [*] Category        : PERSON
@@ -434,7 +428,7 @@ KeyForge uses a **priority-based multi-phase strategy**:
   [*] Generating...
 
   [✓] Total passwords generated: 200000
-  [✓] Saved: C:\Users\umeri\Downloads\keyforge\wordlist.txt
+  [✓] Saved: C:\Users\you\Downloads\keyforge\wordlist.txt
   [✓] Size : 2.14 MB
 
 ═══════════════════════════════════════════════════════════════════
