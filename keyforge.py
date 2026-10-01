@@ -8,6 +8,8 @@ import json
 import itertools
 import time
 import random
+import gzip
+import shutil
 import urllib.request
 import urllib.error
 
@@ -35,6 +37,9 @@ GEMINI_FALLBACK_MODELS = [
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent"
 CONFIG_DIR = os.path.join(os.path.expanduser("~"), ".keyforge")
 CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
+ROCKYOU_URL = "https://github.com/cyb3rster/keyforge/releases/download/v1.0.0-rockyou/rockyou.txt.gz"
+ROCKYOU_GZ = os.path.join(CONFIG_DIR, "rockyou.txt.gz")
+ROCKYOU_TXT = os.path.join(CONFIG_DIR, "rockyou.txt")
 
 
 class C:
@@ -917,12 +922,121 @@ def generate_wordlist(info):
     return passwords
 
 
+def check_rockyou_status():
+    if os.path.exists(ROCKYOU_TXT):
+        return 'ready'
+    if os.path.exists(ROCKYOU_GZ):
+        return 'compressed'
+    return 'missing'
+
+
+def download_and_extract_rockyou():
+    status = check_rockyou_status()
+
+    if status == 'ready':
+        size_mb = os.path.getsize(ROCKYOU_TXT) / (1024 * 1024)
+        print(f"  {C.GREEN}[OK]{C.END} rockyou.txt already available ({size_mb:.2f} MB)")
+        return True
+
+    if status == 'compressed':
+        if not ask_yes_no("Extract rockyou.txt.gz now?", default=True):
+            return False
+        print(f"  {C.CYAN}[*]{C.END} Extracting rockyou.txt.gz...")
+        try:
+            with gzip.open(ROCKYOU_GZ, 'rb') as f_in:
+                with open(ROCKYOU_TXT, 'wb') as f_out:
+                    shutil.copyfileobj(f_in, f_out)
+            if os.path.exists(ROCKYOU_GZ):
+                os.remove(ROCKYOU_GZ)
+            size_mb = os.path.getsize(ROCKYOU_TXT) / (1024 * 1024)
+            print(f"  {C.GREEN}[OK]{C.END} rockyou.txt ready ({size_mb:.2f} MB)")
+            return True
+        except Exception as e:
+            print(f"  {C.RED}[!] Extraction failed: {e}{C.END}")
+            return False
+
+    # Status is 'missing'
+    print(f"  {C.CYAN}[i]{C.END} RockYou wordlist not found. It's ~50 MB download, will be used to enhance your wordlists.")
+    if not ask_yes_no("Download and extract RockYou now?", default=True):
+        return False
+
+    os.makedirs(CONFIG_DIR, exist_ok=True)
+    try:
+        req = urllib.request.Request(ROCKYOU_URL, headers={'User-Agent': 'KeyForge-CLI'})
+        with urllib.request.urlopen(req, timeout=120) as response, open(ROCKYOU_GZ, 'wb') as out_file:
+            total_size = int(response.headers.get('content-length', 0))
+            downloaded = 0
+            block_size = 1024 * 64
+            while True:
+                chunk = response.read(block_size)
+                if not chunk:
+                    break
+                out_file.write(chunk)
+                downloaded += len(chunk)
+                if total_size > 0:
+                    percent = min(100, int(downloaded * 100 / total_size))
+                    sys.stdout.write(f"\r  {C.CYAN}[*]{C.END} Downloading: {percent}%")
+                    sys.stdout.flush()
+                else:
+                    sys.stdout.write(f"\r  {C.CYAN}[*]{C.END} Downloading: {downloaded / (1024 * 1024):.1f} MB")
+                    sys.stdout.flush()
+        print()
+
+        print(f"  {C.CYAN}[*]{C.END} Extracting rockyou.txt.gz...")
+        with gzip.open(ROCKYOU_GZ, 'rb') as f_in:
+            with open(ROCKYOU_TXT, 'wb') as f_out:
+                shutil.copyfileobj(f_in, f_out)
+
+        if os.path.exists(ROCKYOU_GZ):
+            os.remove(ROCKYOU_GZ)
+
+        size_mb = os.path.getsize(ROCKYOU_TXT) / (1024 * 1024)
+        print(f"  {C.GREEN}[OK]{C.END} rockyou.txt ready ({size_mb:.2f} MB)")
+        return True
+    except Exception as e:
+        print()
+        print(f"  {C.RED}[!] RockYou download/extraction failed: {e}{C.END}")
+        if os.path.exists(ROCKYOU_GZ):
+            try:
+                os.remove(ROCKYOU_GZ)
+            except OSError:
+                pass
+        return False
+
+
+def merge_with_rockyou(custom_passwords, output_file):
+    """Write custom list, then append rockyou below (deduplicated)."""
+    seen = set(custom_passwords)
+
+    with open(output_file, 'w', encoding='utf-8') as f:
+        # Custom first
+        for p in custom_passwords:
+            f.write(p + '\n')
+
+        # RockYou below
+        if os.path.exists(ROCKYOU_TXT):
+            added = 0
+            with open(ROCKYOU_TXT, 'r', encoding='utf-8', errors='ignore') as ry:
+                for line in ry:
+                    line = line.strip()
+                    if line and line not in seen:
+                        seen.add(line)
+                        f.write(line + '\n')
+                        added += 1
+            print(f"  {C.GREEN}[OK]{C.END} Merged {C.BOLD}{added:,}{C.END} RockYou passwords below custom list")
+        else:
+            print(f"  {C.CYAN}[i]{C.END} RockYou not available — saved custom list only")
+
+    return True
+
+
 def save_wordlist(passwords, output_file):
     if not os.path.splitext(output_file)[1]:
         output_file += '.txt'
-    with open(output_file, 'w', encoding='utf-8') as f:
-        for p in passwords:
-            f.write(p + '\n')
+
+    # Merge with rockyou if available
+    merge_with_rockyou(passwords, output_file)
+
     size_mb = os.path.getsize(output_file) / (1024 * 1024)
     print(f"  {C.GREEN}[OK]{C.END} Saved: {C.BOLD}{os.path.abspath(output_file)}{C.END}")
     print(f"  {C.GREEN}[OK]{C.END} Size : {size_mb:.2f} MB")
@@ -1044,16 +1158,20 @@ RULES:
 def main():
     try:
         info = ask_questions()
+
+        section("ROCKYOU WORDLIST")
+        download_and_extract_rockyou()
+
         passwords = generate_wordlist(info)
 
         if not passwords:
             print(f"\n  {C.RED}[!] No passwords generated.{C.END}")
             return
 
-        save_wordlist(passwords, info['output'])
-
+        # ── AI mode PEHLE chalao
         passwords = ai_refine_mode(passwords, info, info['min_len'], info['max_len'])
 
+        # ── PHIR ek baar save karo (RockYou ek hi baar merge hoga)
         if passwords:
             save_wordlist(passwords, info['output'])
 
