@@ -479,6 +479,5 @@ Give a ⭐️ if this project helped you!
 
 <img src="https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=6,11,20&height=120&section=footer&animation=fadeIn" width="100%"/>
 
-**Made with ❤️ by [cyb3rster](https://github.com/cyb3rster)**
 
 </div>
